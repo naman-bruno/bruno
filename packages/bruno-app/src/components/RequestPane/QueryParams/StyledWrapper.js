@@ -25,12 +25,6 @@ const Wrapper = styled.div`
     }
   }
 
-  td {
-    &:nth-child(1) {
-      padding: 0 0 0 8px;
-    }
-  }
-
   .btn-add-param {
     font-size: 0.8125rem;
     &:hover span {

@@ -43,6 +43,24 @@ class SingleLineEditor extends Component {
     };
     const noopHandler = () => {};
 
+    const undoHandler = () => {
+      const cursor = this.editor.getCursor();
+      const { paramUid, onUndo } = this.props;
+      if (onUndo) {
+        onUndo(paramUid, cursor);
+      }
+    };
+
+    const redoHandler = () => {
+      const cursor = this.editor.getCursor();
+      const { paramUid, onRedo } = this.props;
+      if (onRedo) {
+        onRedo(paramUid, cursor);
+      }
+    };
+
+
+
     this.editor = CodeMirror(this.editorRef.current, {
       lineWrapping: false,
       lineNumbers: false,
@@ -70,6 +88,8 @@ class SingleLineEditor extends Component {
         'Ctrl-S': saveHandler,
         'Cmd-F': noopHandler,
         'Ctrl-F': noopHandler,
+        'Cmd-Z': undoHandler,
+        'Shift-Cmd-Z': redoHandler,
         // Tabbing disabled to make tabindex work
         Tab: false,
         'Shift-Tab': false
@@ -89,6 +109,21 @@ class SingleLineEditor extends Component {
     this._enableMaskedEditor(this.props.isSecret);
     this.setState({ maskInput: this.props.isSecret });
   }
+
+  focus(cursor) {
+    if (this.editor) {
+      this.editor.focus();
+      if (cursor) {
+        this.editor.setCursor(cursor);
+      }
+    }
+  }
+
+  isFocused() {
+    return this.editor && this.editor.hasFocus();
+  }
+
+
 
   /** Enable or disable masking the rendered content of the editor */
   _enableMaskedEditor = (enabled) => {
