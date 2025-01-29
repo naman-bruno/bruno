@@ -24,6 +24,55 @@ const initialState = {
   collectionSortOrder: 'default'
 };
 
+function initDraftAndField(item, fieldName) {
+  if (!item.draft) {
+    item.draft = cloneDeep(item);
+  }
+  if (!item.draftTimeline) {
+    item.draftTimeline = {};
+  }
+  if (!item.draftTimeline[fieldName]) {
+    item.draftTimeline[fieldName] = {
+      history: [],
+      index: -1,
+    };
+  }
+}
+
+function pushToFieldTimeline(item, fieldName, newValue) {
+  initDraftAndField(item, fieldName);
+
+  const fieldTimeline = item.draftTimeline[fieldName];
+
+  if (fieldTimeline.index < fieldTimeline.history.length - 1) {
+    fieldTimeline.history = fieldTimeline.history.slice(0, fieldTimeline.index + 1);
+  }
+
+  fieldTimeline.history.push(cloneDeep(newValue));
+  fieldTimeline.index = fieldTimeline.history.length - 1;
+}
+
+function undoFieldChange(item, fieldName) {
+  const fieldTimeline = item.draftTimeline?.[fieldName];
+
+  if (fieldTimeline && fieldTimeline.index > 0) {
+    fieldTimeline.index--;
+    const previousValue = fieldTimeline.history[fieldTimeline.index];
+    set(item.draft, fieldName, cloneDeep(previousValue));
+  }
+}
+
+function redoFieldChange(item, fieldName) {
+  const fieldTimeline = item.draftTimeline?.[fieldName];
+
+  if (fieldTimeline && fieldTimeline.index < fieldTimeline.history.length - 1) {
+    fieldTimeline.index++;
+    const nextValue = fieldTimeline.history[fieldTimeline.index];
+    set(item.draft, fieldName, cloneDeep(nextValue));
+  }
+}
+
+
 export const collectionsSlice = createSlice({
   name: 'collections',
   initialState,
@@ -387,17 +436,23 @@ export const collectionsSlice = createSlice({
       }
     },
     requestUrlChanged: (state, action) => {
-      const collection = findCollectionByUid(state.collections, action.payload.collectionUid);
-
+      const { collectionUid, itemUid, url } = action.payload;
+      const collection = findCollectionByUid(state.collections, collectionUid);
+    
       if (collection) {
-        const item = findItemInCollection(collection, action.payload.itemUid);
-
+        const item = findItemInCollection(collection, itemUid);
+    
         if (item && isItemARequest(item)) {
-          if (!item.draft) {
-            item.draft = cloneDeep(item);
-          }
-          item.draft.request.url = action.payload.url;
-
+          // Initialize the draft and URL field timeline
+          initDraftAndField(item, 'request.url');
+          initDraftAndField(item, 'request.params');
+    
+          // Update the URL in the draft
+          item.draft.request.url = url;
+    
+          // Push the new URL onto the URL timeline
+          pushToFieldTimeline(item, 'request.url', url);
+    
           const parts = splitOnFirst(item?.draft?.request?.url, '?');
           const urlQueryParams = parseQueryParams(parts[1]);
           let urlPathParams = [];
@@ -451,58 +506,58 @@ export const collectionsSlice = createSlice({
           // the query params are the source of truth, the url in the queryurl input gets constructed using these params
           // we however are also storing the full url (with params) in the url itself
           item.draft.request.params = concat(urlQueryParams, newPathParams, disabledQueryParams, oldPathParams);
+    
+          // If parameters are also being modified and require undo/redo
+          pushToFieldTimeline(item, 'request.params', item.draft.request.params);
         }
       }
     },
+    
     updateAuth: (state, action) => {
-      const collection = findCollectionByUid(state.collections, action.payload.collectionUid);
-
+      const { collectionUid, itemUid, mode, content } = action.payload;
+      const collection = findCollectionByUid(state.collections, collectionUid);
+    
       if (collection) {
-        const item = findItemInCollection(collection, action.payload.itemUid);
-
+        const item = findItemInCollection(collection, itemUid);
+    
         if (item && isItemARequest(item)) {
-          if (!item.draft) {
-            item.draft = cloneDeep(item);
-          }
-
+          initDraftAndField(item, 'request.auth');
+    
           item.draft.request.auth = item.draft.request.auth || {};
-          switch (action.payload.mode) {
-            case 'awsv4':
-              item.draft.request.auth.mode = 'awsv4';
-              item.draft.request.auth.awsv4 = action.payload.content;
-              break;
-            case 'bearer':
-              item.draft.request.auth.mode = 'bearer';
-              item.draft.request.auth.bearer = action.payload.content;
-              break;
-            case 'basic':
-              item.draft.request.auth.mode = 'basic';
-              item.draft.request.auth.basic = action.payload.content;
-              break;
-            case 'digest':
-              item.draft.request.auth.mode = 'digest';
-              item.draft.request.auth.digest = action.payload.content;
-              break;
-            case 'ntlm':
-              item.draft.request.auth.mode = 'ntlm';
-              item.draft.request.auth.ntlm = action.payload.content;
-              break;              
-            case 'oauth2':
-              item.draft.request.auth.mode = 'oauth2';
-              item.draft.request.auth.oauth2 = action.payload.content;
-              break;
-            case 'wsse':
-              item.draft.request.auth.mode = 'wsse';
-              item.draft.request.auth.wsse = action.payload.content;
-              break;
-            case 'apikey':
-              item.draft.request.auth.mode = 'apikey';
-              item.draft.request.auth.apikey = action.payload.content;
-              break;
-          }
+          item.draft.request.auth.mode = mode;
+          item.draft.request.auth[mode] = content;
+    
+          pushToFieldTimeline(item, 'request.auth', cloneDeep(item.draft.request.auth));
+        }
+      }
+    },    
+    
+    undoChange: (state, action) => {
+      const { collectionUid, itemUid, fieldName } = action.payload;
+      const collection = findCollectionByUid(state.collections, collectionUid);
+    
+      if (collection) {
+        const item = findItemInCollection(collection, itemUid);
+    
+        if (item && isItemARequest(item) && item.draft && item.draftTimeline?.[fieldName]) {
+          undoFieldChange(item, fieldName);
         }
       }
     },
+    
+    redoChange: (state, action) => {
+      const { collectionUid, itemUid, fieldName } = action.payload;
+      const collection = findCollectionByUid(state.collections, collectionUid);
+    
+      if (collection) {
+        const item = findItemInCollection(collection, itemUid);
+    
+        if (item && isItemARequest(item) && item.draft && item.draftTimeline?.[fieldName]) {
+          redoFieldChange(item, fieldName);
+        }
+      }
+    },
+    
     addQueryParam: (state, action) => {
       const collection = findCollectionByUid(state.collections, action.payload.collectionUid);
 
@@ -515,13 +570,16 @@ export const collectionsSlice = createSlice({
           }
           item.draft.request.params = item.draft.request.params || [];
           item.draft.request.params.push({
-            uid: uuid(),
+            uid: action.payload.uid || uuid(),
             name: '',
             value: '',
             description: '',
             type: 'query',
             enabled: true
           });
+
+          pushToFieldTimeline(item, 'request.params', item.draft.request.params);
+          pushToFieldTimeline(item, 'request.url', item.draft.request.url);
         }
       }
     },
@@ -550,14 +608,17 @@ export const collectionsSlice = createSlice({
             return queryParams.find((param) => param.uid === uid);
           });
           item.draft.request.params = [...reorderedQueryParams, ...pathParams];
-    
+          pushToFieldTimeline(item, 'request.params', item.draft.request.params);
+
           // Update request URL
           const parts = splitOnFirst(item.draft.request.url, '?');
           const query = stringifyQueryParams(filter(item.draft.request.params, (p) => p.enabled && p.type === 'query'));
           if (query && query.length) {
             item.draft.request.url = parts[0] + '?' + query;
+            pushToFieldTimeline(item, 'request.url', item.draft.request.url);
           } else {
             item.draft.request.url = parts[0];
+            pushToFieldTimeline(item, 'request.url', item.draft.request.url);
           }
         }
       }
@@ -588,10 +649,13 @@ export const collectionsSlice = createSlice({
               filter(item.draft.request.params, (p) => p.enabled && p.type === 'query')
             );
 
+            pushToFieldTimeline(item, 'request.params', item.draft.request.params);
+
             // if no query is found, then strip the query params in url
             if (!query || !query.length) {
               if (parts.length) {
                 item.draft.request.url = parts[0];
+                pushToFieldTimeline(item, 'request.url', item.draft.request.url);
               }
               return;
             }
@@ -599,11 +663,13 @@ export const collectionsSlice = createSlice({
             // if no parts were found, then append the query
             if (!parts.length) {
               item.draft.request.url += '?' + query;
+              pushToFieldTimeline(item, 'request.url', item.draft.request.url);
               return;
             }
 
             // control reaching here means the request has parts and query is present
             item.draft.request.url = parts[0] + '?' + query;
+            pushToFieldTimeline(item, 'request.url', item.draft.request.url);
           }
         }
       }
@@ -619,14 +685,17 @@ export const collectionsSlice = createSlice({
             item.draft = cloneDeep(item);
           }
           item.draft.request.params = filter(item.draft.request.params, (p) => p.uid !== action.payload.paramUid);
+          pushToFieldTimeline(item, 'request.params', item.draft.request.params);
 
           // update request url
           const parts = splitOnFirst(item.draft.request.url, '?');
           const query = stringifyQueryParams(filter(item.draft.request.params, (p) => p.enabled && p.type === 'query'));
           if (query && query.length) {
             item.draft.request.url = parts[0] + '?' + query;
+            pushToFieldTimeline(item, 'request.url', item.draft.request.url);
           } else {
             item.draft.request.url = parts[0];
+            pushToFieldTimeline(item, 'request.url', item.draft.request.url);
           }
         }
       }
@@ -2003,7 +2072,9 @@ export const {
   runFolderEvent,
   resetCollectionRunner,
   updateRequestDocs,
-  updateFolderDocs
+  updateFolderDocs,
+  undoChange,
+  redoChange
 } = collectionsSlice.actions;
 
 export default collectionsSlice.reducer;
