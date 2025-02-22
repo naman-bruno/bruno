@@ -1,58 +1,97 @@
 import React from 'react';
-import forOwn from 'lodash/forOwn';
-import { safeStringifyJSON } from 'utils/common';
-import StyledWrapper from './StyledWrapper';
+import styled from 'styled-components';
 
-const Timeline = ({ request, response }) => {
-  const requestHeaders = [];
-  const responseHeaders = typeof response.headers === 'object' ? Object.entries(response.headers) : [];
+const StyledWrapper = styled.div`
+  .line {
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 14px;
+    margin: 0;
+  }
 
-  request = request || {};
+  .info {
+    color: #888;
+  }
+
+  .request {
+    color: #3498db;
+  }
+
+  .response {
+    color: #27ae60;
+  }
+
+  .error {
+    color: #e74c3c;
+  }
+
+  .header {
+    color: #d35400;
+  }
+
+  .data {
+    color: #8e44ad;
+  }
+
+  .tls {
+    color: #16a085;
+  }
+`;
+
+const Timeline = ({ response }) => {
   response = response || {};
+  const timelineEntries = response.timeline || [];
 
-  forOwn(request.headers, (value, key) => {
-    requestHeaders.push({
-      name: key,
-      value
-    });
-  });
+  const renderLine = (entry, index) => {
+    const { type, message, data } = entry;
+    let className = 'info';
 
-  let requestData = typeof request?.data === "string" ? request?.data : safeStringifyJSON(request?.data, true);
+    switch (type) {
+      case 'request':
+        className = 'request';
+        break;
+      case 'requestHeader':
+        className = 'header';
+        break;
+      case 'requestData':
+        className = 'data';
+        break;
+      case 'response':
+        className = 'response';
+        break;
+      case 'responseHeader':
+        className = 'header';
+        break;
+      case 'responseData':
+        className = 'data';
+        break;
+      case 'tls':
+        className = 'tls';
+        break;
+      case 'error':
+        className = 'error';
+        break;
+      case 'info':
+      default:
+        className = 'info';
+        break;
+    }
+
+    return (
+      <div key={index} className={`line ${className}`}>
+        {message}
+        {data && (
+          <pre>{JSON.stringify(data, null, 2)}</pre>
+        )}
+      </div>
+    );
+  };
 
   return (
     <StyledWrapper className="pb-4 w-full">
       <div>
-        <pre className="line request font-bold">
-          <span className="arrow">{'>'}</span> {request.method} {request.url}
-        </pre>
-        {requestHeaders.map((h) => {
-          return (
-            <pre className="line request" key={h.name}>
-              <span className="arrow">{'>'}</span> {h.name}: {h.value}
-            </pre>
-          );
-        })}
-
-        {requestData ? (
-          <pre className="line request">
-            <span className="arrow">{'>'}</span> data{' '}
-            <pre className="text-sm flex flex-wrap whitespace-break-spaces">{requestData}</pre>
-          </pre>
-        ) : null}
-      </div>
-
-      <div className="mt-4">
-        <pre className="line response font-bold">
-          <span className="arrow">{'<'}</span> {response.status} - {response.statusText}
-        </pre>
-
-        {responseHeaders.map((h) => {
-          return (
-            <pre className="line response" key={h[0]}>
-              <span className="arrow">{'<'}</span> {h[0]}: {h[1]}
-            </pre>
-          );
-        })}
+        {timelineEntries.map((entry, index) => renderLine(entry, index))}
       </div>
     </StyledWrapper>
   );
