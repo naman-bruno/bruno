@@ -32,6 +32,7 @@
     "@usebruno/schema": "0.7.0",
     "@usebruno/vm2": "^3.9.13",
     "about-window": "^1.15.2",
+    "agent-base": "^7.1.3",
     "aws4-axios": "^3.3.0",
     "axios": "1.7.5",
     "axios-ntlm": "^1.4.2",
