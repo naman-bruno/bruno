@@ -6,6 +6,8 @@ const electronApp = require("electron");
 const { preferencesUtil } = require('../../store/preferences');
 const { getCookieStringForUrl, addCookieToJar } = require('../../utils/cookies');
 const { setupProxyAgents } = require('../../utils/proxy-util');
+const iconv = require('iconv-lite');
+const https = require('https');
 
 const LOCAL_IPV6 = '::1';
 const LOCAL_IPV4 = '127.0.0.1';
@@ -19,6 +21,36 @@ const getTld = (hostname) => {
   }
 
   return hostname.substring(hostname.lastIndexOf('.') + 1);
+};
+
+const parseDataFromResponse = (response, disableParsingResponseJson = false) => {
+  // Parse the charset from content type: https://stackoverflow.com/a/33192813
+  const charsetMatch = /charset=([^()<>@,;:"/[\]?.=\s]*)/i.exec(response.headers['content-type'] || '');
+  // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/RegExp/exec#using_exec_with_regexp_literals
+  const charsetValue = charsetMatch?.[1];
+  const dataBuffer = Buffer.from(response.data);
+  // Overwrite the original data for backwards compatibility
+  let data;
+  if (iconv.encodingExists(charsetValue)) {
+    data = iconv.decode(dataBuffer, charsetValue);
+  } else {
+    data = iconv.decode(dataBuffer, 'utf-8');
+  }
+  // Try to parse response to JSON, this can quietly fail
+  try {
+    // Filter out ZWNBSP character
+    // https://gist.github.com/antic183/619f42b559b78028d1fe9e7ae8a1352d
+    data = data.replace(/^\uFEFF/, '');
+
+    // If the response is a string and starts and ends with double quotes, it's a stringified JSON and should not be parsed
+    if ( !disableParsingResponseJson && ! (typeof data === 'string' && data.startsWith("\"") && data.endsWith("\""))) {
+      data = JSON.parse(data);
+    }
+  } catch {
+    console.log('Failed to parse response data as JSON');
+  }
+
+  return { data, dataBuffer };
 };
 
 const checkConnection = (host, port) =>
@@ -95,6 +127,51 @@ function makeAxiosInstance({ proxyMode, proxyConfig, requestMaxRedirects, httpsA
 
   instance.interceptors.request.use(async (config) => {
     const url = URL.parse(config.url);
+  
+    config.metadata = config.metadata || {};
+    config.metadata.startTime = new Date().getTime();
+    config.metadata.timeline = config.metadata.timeline || [];
+  
+    // Add initial request details to the timeline
+    config.metadata.timeline.push({
+      timestamp: new Date(),
+      type: 'info',
+      message: `Preparing request to ${config.url}`,
+    });
+    config.metadata.timeline.push({
+      timestamp: new Date(),
+      type: 'info',
+      message: `Current time is ${new Date().toISOString()}`,
+    });
+  
+    // Add request method and headers
+    config.metadata.timeline.push({
+      timestamp: new Date(),
+      type: 'request',
+      message: `${config.method.toUpperCase()} ${config.url}`,
+    });
+    Object.entries(config.headers).forEach(([key, value]) => {
+      config.metadata.timeline.push({
+        timestamp: new Date(),
+        type: 'requestHeader',
+        message: `${key}: ${value}`,
+      });
+    });
+  
+    // Add request data if available
+    if (config.data) {
+      let requestData;
+      try {
+        requestData = typeof config.data === 'string' ? config.data : JSON.stringify(config.data, null, 2);
+      } catch (err) {
+        requestData = config.data.toString();
+      }
+      config.metadata.timeline.push({
+        timestamp: new Date(),
+        type: 'requestData',
+        message: requestData,
+      });
+    }
 
     // Resolve all *.localhost to localhost and check if it should use IPv6 or IPv4
     // RFC: 6761 section 6.3 (https://tools.ietf.org/html/rfc6761#section-6.3)
@@ -111,6 +188,21 @@ function makeAxiosInstance({ proxyMode, proxyConfig, requestMaxRedirects, httpsA
     }
 
     config.headers['request-start-time'] = Date.now();
+
+    const agentOptions = {
+      ...httpsAgentRequestFields,
+      keepAlive: true,
+    };
+  
+    // Now call setupProxyAgents and pass the timeline
+    setupProxyAgents({
+      requestConfig: config,
+      proxyMode: proxyMode, // 'on', 'off', or 'system', depending on your settings
+      proxyConfig: proxyConfig,
+      httpsAgentRequestFields: agentOptions,
+      interpolationOptions: interpolationOptions, // Provide your interpolation options
+      timeline: config.metadata.timeline,
+    });  
     return config;
   });
 
@@ -122,6 +214,63 @@ function makeAxiosInstance({ proxyMode, proxyConfig, requestMaxRedirects, httpsA
       const start = response.config.headers['request-start-time'];
       response.headers['request-duration'] = end - start;
       redirectCount = 0;
+
+      const config = response.config;
+      const metadata = config.metadata;
+      const duration = end - metadata.startTime;
+
+      const httpVersion = response.request?.res?.httpVersion || '1.1';
+      metadata.timeline.push({
+        timestamp: new Date(),
+        type: 'response',
+        message: `HTTP/${httpVersion} ${response.status} ${response.statusText}`,
+      });
+
+      if (httpVersion.startsWith('2')) {
+        metadata.timeline.push({
+          timestamp: new Date(),
+          type: 'info',
+          message: `Using HTTP/2, server supports multiplexing`,
+        });
+      }
+
+      metadata.timeline.push({
+        timestamp: new Date(),
+        type: 'response',
+        message: `HTTP/${response.httpVersion || '1.1'} ${response.status} ${response.statusText}`,
+      });
+      Object.entries(response.headers).forEach(([key, value]) => {
+        metadata.timeline.push({
+          timestamp: new Date(),
+          type: 'responseHeader',
+          message: `${key}: ${value}`,
+        });
+      });
+      metadata.timeline.push({
+        timestamp: new Date(),
+        type: 'info',
+        message: `Request completed in ${duration} ms`,
+      });
+
+      // Add response data if available
+      if (response.data) {
+        let responseData;
+        const { data, dataBuffer } = parseDataFromResponse(response);
+        try {
+          responseData = typeof response.data === 'string' ? data : JSON.stringify(data, null, 2);
+        } catch (err) {
+          responseData = response.data.toString();
+        }
+        metadata.timeline.push({
+          timestamp: new Date(),
+          type: 'responseData',
+          message: responseData,
+        });
+      }
+
+      // Attach the timeline to the response
+      response.timeline = metadata.timeline;
+
       return response;
     },
     (error) => {
@@ -129,8 +278,50 @@ function makeAxiosInstance({ proxyMode, proxyConfig, requestMaxRedirects, httpsA
         const end = Date.now();
         const start = error.config.headers['request-start-time'];
         error.response.headers['request-duration'] = end - start;
+        const config = error.config;
+        const metadata = config.metadata;
+        const duration = end - metadata.startTime;
 
         if (error.response && redidrectResponseCodes.includes(error.response.status)) {
+
+
+      metadata.timeline.push({
+        timestamp: new Date(),
+        type: 'response',
+        message: `HTTP/${error.response.httpVersion || '1.1'} ${error.response.status} ${error.response.statusText}`,
+      });
+      Object.entries(error.response.headers).forEach(([key, value]) => {
+        metadata.timeline.push({
+          timestamp: new Date(),
+          type: 'responseHeader',
+          message: `${key}: ${value}`,
+        });
+      });
+      metadata.timeline.push({
+        timestamp: new Date(),
+        type: 'info',
+        message: `Request completed in ${duration} ms`,
+      });
+
+      // Add response data if available
+      if (error.response.data) {
+        let responseData;
+        const { data, dataBuffer } = parseDataFromResponse(error.response);
+        try {
+          responseData = typeof error.response.data === 'string' ? data : JSON.stringify(data, null, 2);
+        } catch (err) {
+          responseData = error.response.data.toString();
+        }
+        metadata.timeline.push({
+          timestamp: new Date(),
+          type: 'responseData',
+          message: responseData,
+        });
+      }
+
+      // Attach the timeline to the response
+      error.response.timeline = metadata.timeline;
+
           if (redirectCount >= requestMaxRedirects) {
             const dataBuffer = Buffer.from(error.response.data);
 
@@ -176,7 +367,8 @@ function makeAxiosInstance({ proxyMode, proxyConfig, requestMaxRedirects, httpsA
             proxyMode,
             proxyConfig,
             httpsAgentRequestFields,
-            interpolationOptions
+            interpolationOptions,
+            timeline: metadata.timeline
           });
 
           // Make the redirected request
@@ -191,5 +383,6 @@ function makeAxiosInstance({ proxyMode, proxyConfig, requestMaxRedirects, httpsA
 }
 
 module.exports = {
-  makeAxiosInstance
+  makeAxiosInstance,
+  
 };
