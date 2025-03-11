@@ -1,0 +1,139 @@
+{
+  "name": "bruno-vs-code",
+  "displayName": "Bruno API Client",
+  "description": "Bruno API testing client for VS Code",
+  "version": "0.1.0",
+  "publisher": "usebruno",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/usebruno/bruno.git"
+  },
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "api", 
+    "rest", 
+    "http", 
+    "graphql", 
+    "client", 
+    "testing"
+  ],
+  "icon": "resources/bruno-icon.png",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "Bruno API Client",
+      "properties": {
+        "bruno.editor.defaultMode": {
+          "type": "string",
+          "default": "ui",
+          "enum": ["ui", "text"],
+          "enumDescriptions": [
+            "Use the Bruno UI editor for .bru files",
+            "Use the standard text editor for .bru files"
+          ],
+          "description": "Default editor mode for .bru files"
+        }
+      }
+    },
+    "languages": [
+      {
+        "id": "bruno",
+        "extensions": [".bru"],
+        "aliases": ["Bruno", "bruno"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "bruno.runRequest",
+        "title": "Bruno: Run Request"
+      },
+      {
+        "command": "bruno.openInTextEditor",
+        "title": "Bruno: Open in Text Editor"
+      },
+      {
+        "command": "bruno.openInUIEditor",
+        "title": "Bruno: Open in UI Editor"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "when": "resourceExtname == .bru && resourceFilename != folder.bru && resourceFilename != collection.bru",
+          "command": "bruno.runRequest",
+          "group": "navigation"
+        },
+        {
+          "when": "resourceExtname == .bru && resourceFilename != folder.bru && resourceFilename != collection.bru",
+          "command": "bruno.openInTextEditor",
+          "group": "1_modification"
+        },
+        {
+          "when": "resourceExtname == .bru && resourceFilename != folder.bru && resourceFilename != collection.bru",
+          "command": "bruno.openInUIEditor",
+          "group": "1_modification"
+        }
+      ],
+      "editor/context": [
+        {
+          "when": "resourceExtname == .bru && resourceFilename != folder.bru && resourceFilename != collection.bru",
+          "command": "bruno.runRequest",
+          "group": "navigation"
+        },
+        {
+          "when": "resourceExtname == .bru && resourceFilename != folder.bru && resourceFilename != collection.bru",
+          "command": "bruno.openInTextEditor",
+          "group": "1_modification"
+        },
+        {
+          "when": "resourceExtname == .bru && resourceFilename != folder.bru && resourceFilename != collection.bru",
+          "command": "bruno.openInUIEditor",
+          "group": "1_modification"
+        }
+      ]
+    },
+    "customEditors": [
+      {
+        "viewType": "bruno.requestEditor",
+        "displayName": "Bruno Request Editor",
+        "selector": [
+          {
+            "filenamePattern": "*.bru",
+            "excludeFileNamePattern": "(*folder.bru|*collection.bru)"
+          }
+        ],
+        "priority": "option"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "webpack --mode production",
+    "compile": "webpack --mode development",
+    "watch": "webpack --watch --mode development",
+    "lint": "eslint src --ext ts"
+  },
+  "dependencies": {
+    "@usebruno/lang": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^18.x",
+    "@types/vscode": "^1.80.0",
+    "@typescript-eslint/eslint-plugin": "^6.9.0",
+    "@typescript-eslint/parser": "^6.9.0",
+    "eslint": "^8.52.0",
+    "typescript": "^5.2.2",
+    "webpack": "^5.88.0",
+    "webpack-cli": "^5.1.4",
+    "ts-loader": "^9.4.4"
+  }
+}

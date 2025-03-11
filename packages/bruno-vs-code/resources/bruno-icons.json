@@ -1,0 +1,43 @@
+{
+  "iconDefinitions": {
+    "bruno-file": {
+      "iconPath": "./method-icons/api.png"
+    },
+    "bruno-get": {
+      "iconPath": "./method-icons/get.png"
+    },
+    "bruno-post": {
+      "iconPath": "./method-icons/post.png"
+    },
+    "bruno-put": {
+      "iconPath": "./method-icons/put.png"
+    },
+    "bruno-delete": {
+      "iconPath": "./method-icons/delete.png"
+    },
+    "bruno-patch": {
+      "iconPath": "./method-icons/patch.png"
+    },
+    "bruno-folder": {
+      "iconPath": "./method-icons/folder.png"
+    }
+  },
+  "file": "bruno-file",
+  "fileExtensions": {
+    "bru": "bruno-file"
+  },
+  "fileNames": {
+    "folder.bru": "bruno-folder"
+  },
+  "light": {
+    "fileExtensions": {
+      "bru": "bruno-file"
+    },
+    "fileNames": {
+      "folder.bru": "bruno-folder"
+    }
+  },
+  "languageIds": {
+    "bruno": "bruno-file"
+  }
+} 
