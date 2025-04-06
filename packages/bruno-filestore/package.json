@@ -1,17 +1,29 @@
 {
   "name": "@usebruno/filestore",
   "version": "0.1.0",
-  "license": "MIT",
+  "description": "File storage implementation for Bruno API client",
   "main": "src/index.js",
-  "files": [
-    "src",
-    "package.json"
-  ],
   "scripts": {
     "test": "jest"
   },
+  "keywords": [
+    "bruno",
+    "api",
+    "filestore"
+  ],
+  "author": "Bruno API Client",
+  "license": "MIT",
   "dependencies": {
-    "@usebruno/lang": "0.12.0",
-    "lodash": "^4.17.21"
+    "@usebruno/lang": "^0.4.0",
+    "js-yaml": "^4.1.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": [
+      "**/*.test.js"
+    ]
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
   }
-} 
+}

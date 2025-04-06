@@ -1146,16 +1146,14 @@ export const openCollectionEvent = (uid, pathname, brunoConfig) => (dispatch, ge
   });
 };
 
-export const createCollection = (collectionName, collectionFolderName, collectionLocation) => () => {
-  const { ipcRenderer } = window;
-
-  return new Promise((resolve, reject) => {
-    ipcRenderer
-      .invoke('renderer:create-collection', collectionName, collectionFolderName, collectionLocation)
-      .then(resolve)
-      .catch(reject);
-  });
+export const createCollection = (collectionName, collectionFolderName, collectionLocation, fileFormat) => () => {
+  return callIpc('renderer:create-collection', collectionName, collectionFolderName, collectionLocation, fileFormat)
+    .catch(error => {
+      toast.error('An error occurred while creating the collection: ' + error.message);
+      throw error;
+    });
 };
+
 export const cloneCollection = (collectionName, collectionFolderName, collectionLocation, previousPath) => () => {
   const { ipcRenderer } = window;
 
@@ -1167,6 +1165,7 @@ export const cloneCollection = (collectionName, collectionFolderName, collection
     previousPath
   );
 };
+
 export const openCollection = () => () => {
   return new Promise((resolve, reject) => {
     const { ipcRenderer } = window;

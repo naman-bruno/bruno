@@ -25,13 +25,13 @@ const {
   browseFiles,
   createDirectory,
   searchForBruFiles,
-  sanitizeDirectoryName,
+  sanitizeName,
   isWSLPath,
   normalizeWslPath,
   normalizeAndResolvePath,
   safeToRename,
   isWindowsOS,
-  isValidFilename,
+  validateName,
   hasSubDirectories,
   getCollectionStats,
   sizeInMB
@@ -87,9 +87,9 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
   // create collection
   ipcMain.handle(
     'renderer:create-collection',
-    async (event, collectionName, collectionFolderName, collectionLocation) => {
+    async (event, collectionName, collectionFolderName, collectionLocation, fileFormat) => {
       try {
-        collectionFolderName = sanitizeDirectoryName(collectionFolderName);
+        collectionFolderName = sanitizeName(collectionFolderName);
         const dirPath = path.join(collectionLocation, collectionFolderName);
         if (fs.existsSync(dirPath)) {
           const files = fs.readdirSync(dirPath);
@@ -99,7 +99,7 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
           }
         }
 
-        if (!isValidFilename(path.basename(dirPath))) {
+        if (!validateName(path.basename(dirPath))) {
           throw new Error(`collection: invalid pathname - ${dirPath}`);
         }
 
@@ -112,9 +112,12 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
           version: '1',
           name: collectionName,
           type: 'collection',
+          fileFormat: fileFormat || 'bru',
           ignore: ['node_modules', '.git']
         };
-        const content = await stringifyRequestViaWorker(brunoConfig, { worker: true, workerConfig });
+        
+        // Always save bruno.json as JSON, regardless of the collection's file format preference
+        const content = JSON.stringify(brunoConfig, null, 2);
         await writeFile(path.join(dirPath, 'bruno.json'), content);
 
         const { size, filesCount } = await getCollectionStats(dirPath);
@@ -132,13 +135,13 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
   ipcMain.handle(
     'renderer:clone-collection',
     async (event, collectionName, collectionFolderName, collectionLocation, previousPath) => {
-      collectionFolderName = sanitizeDirectoryName(collectionFolderName);
+      collectionFolderName = sanitizeName(collectionFolderName);
       const dirPath = path.join(collectionLocation, collectionFolderName);
       if (fs.existsSync(dirPath)) {
         throw new Error(`collection: ${dirPath} already exists`);
       }
 
-      if (!isValidFilename(path.basename(dirPath))) {
+      if (!validateName(path.basename(dirPath))) {
         throw new Error(`collection: invalid pathname - ${dirPath}`);
       }
 
@@ -235,7 +238,7 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
         throw new Error(`path: ${pathname} already exists`);
       }
       // For the actual filename part, we want to be strict
-      if (!isValidFilename(request?.filename)) {
+      if (!validateName(request?.filename)) {
         throw new Error(`${request.filename}.bru is not a valid filename`);
       }
       const content = await stringifyRequest(request);
@@ -477,7 +480,7 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
         throw new Error(`path: ${oldPath} is not a bru file`);
       }
 
-      if (!isValidFilename(newFilename)) {
+      if (!validateName(newFilename)) {
         throw new Error(`path: ${newFilename} is not a valid filename`);
       }
 
@@ -512,7 +515,7 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
 
   // new folder
   ipcMain.handle('renderer:new-folder', async (event, pathname, folderName) => {
-    const resolvedFolderName = sanitizeDirectoryName(path.basename(pathname));
+    const resolvedFolderName = sanitizeName(path.basename(pathname));
     pathname = path.join(path.dirname(pathname), resolvedFolderName);
     try {
       if (!fs.existsSync(pathname)) {
@@ -584,7 +587,7 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
 
   ipcMain.handle('renderer:import-collection', async (event, collection, collectionLocation) => {
     try {
-      let collectionName = sanitizeDirectoryName(collection.name);
+      let collectionName = sanitizeName(collection.name);
       let collectionPath = path.join(collectionLocation, collectionName);
 
       if (fs.existsSync(collectionPath)) {
@@ -595,13 +598,13 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
       const parseCollectionItems = (items = [], currentPath) => {
         items.forEach(async (item) => {
           if (['http-request', 'graphql-request'].includes(item.type)) {
-            let sanitizedFilename = sanitizeDirectoryName(item?.filename || `${item.name}.bru`);
+            let sanitizedFilename = sanitizeName(item?.filename || `${item.name}.bru`);
             const content = await stringifyRequest(item);
             const filePath = path.join(currentPath, sanitizedFilename);
             safeWriteFileSync(filePath, content);
           }
           if (item.type === 'folder') {
-            let sanitizedFolderName = sanitizeDirectoryName(item?.filename || item?.name);
+            let sanitizedFolderName = sanitizeName(item?.filename || item?.name);
             const folderPath = path.join(currentPath, sanitizedFolderName);
             fs.mkdirSync(folderPath);
 
@@ -617,7 +620,7 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
           }
           // Handle items of type 'js'
           if (item.type === 'js') {
-            let sanitizedFilename = sanitizeDirectoryName(item?.filename || `${item.name}.js`);
+            let sanitizedFilename = sanitizeName(item?.filename || `${item.name}.js`);
             const filePath = path.join(currentPath, sanitizedFilename);
             safeWriteFileSync(filePath, item.fileContent);
           }
@@ -632,7 +635,7 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
 
         environments.forEach(async (env) => {
           const content = await stringifyEnvironment(env);
-          let sanitizedEnvFilename = sanitizeDirectoryName(`${env.name}.bru`);
+          let sanitizedEnvFilename = sanitizeName(`${env.name}.bru`);
           const filePath = path.join(envDirPath, sanitizedEnvFilename);
           safeWriteFileSync(filePath, content);
         });

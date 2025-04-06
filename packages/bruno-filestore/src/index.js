@@ -6,120 +6,176 @@ const {
   bruEnvironmentToJson,
   jsonEnvironmentToBru
 } = require('./formats/bru');
+const {
+  yamlRequestToJson,
+  jsonRequestToYaml,
+  yamlCollectionToJson,
+  jsonCollectionToYaml,
+  yamlEnvironmentToJson,
+  jsonEnvironmentToYaml
+} = require('./formats/yaml');
 const { dotenvToJson } = require('@usebruno/lang');
 const { BruParserWorker } = require('./workers');
+const {
+  detectFormatFromContent,
+  detectFormatFromFilename,
+  getExtensionForFormat,
+  getFormatFromCollectionConfig
+} = require('./utils/format-detector');
 
 /**
  * Parse a request from a file
  * @param {string} content - The content of the file
- * @param {Object} options - Options for parsing (e.g., format)
+ * @param {Object} options - Options for parsing
+ * @param {string} options.format - Format to use ('bru', 'yaml', or 'auto')
  * @returns {Object} - Parsed request object
  */
-const parseRequest = (content, options = { format: 'bru' }) => {
-  if (options.format === 'bru') {
-    return bruRequestToJson(content);
+const parseRequest = (content, options = {}) => {
+  // If no format is specified, autodetect it
+  const format = options.format || detectFormatFromContent(content);
+  
+  if (format === 'yaml') {
+    return yamlRequestToJson(content);
   }
-  // Future implementations for other formats (e.g., YAML)
-  throw new Error(`Unsupported format: ${options.format}`);
+  
+  // Default to BRU
+  return bruRequestToJson(content);
 };
 
 /**
  * Stringify a request object to file content
  * @param {Object} requestObj - The request object to stringify
- * @param {Object} options - Options for stringifying (e.g., format)
+ * @param {Object} options - Options for stringifying
+ * @param {string} options.format - Format to use ('bru', 'yaml')
  * @returns {string} - Stringified request content
  */
-const stringifyRequest = (requestObj, options = { format: 'bru' }) => {
-  if (options.format === 'bru') {
-    return jsonRequestToBru(requestObj);
+const stringifyRequest = (requestObj, options = {}) => {
+  // Default to BRU format if not specified
+  const format = options.format || 'bru';
+  
+  if (format === 'yaml') {
+    return jsonRequestToYaml(requestObj);
   }
-  // Future implementations for other formats (e.g., YAML)
-  throw new Error(`Unsupported format: ${options.format}`);
+  
+  // Default to BRU
+  return jsonRequestToBru(requestObj);
 };
 
 /**
  * Parse a collection from a file
  * @param {string} content - The content of the file
- * @param {Object} options - Options for parsing (e.g., format)
+ * @param {Object} options - Options for parsing
+ * @param {string} options.format - Format to use ('bru', 'yaml', or 'auto')
  * @returns {Object} - Parsed collection object
  */
-const parseCollection = (content, options = { format: 'bru' }) => {
-  if (options.format === 'bru') {
-    return bruCollectionToJson(content);
+const parseCollection = (content, options = {}) => {
+  // If no format is specified, autodetect it
+  const format = options.format || detectFormatFromContent(content);
+  
+  if (format === 'yaml') {
+    return yamlCollectionToJson(content);
   }
-  // Future implementations for other formats (e.g., YAML)
-  throw new Error(`Unsupported format: ${options.format}`);
+  
+  // Default to BRU
+  return bruCollectionToJson(content);
 };
 
 /**
  * Stringify a collection object to file content
  * @param {Object} collectionObj - The collection object to stringify
- * @param {Object} options - Options for stringifying (e.g., format)
+ * @param {boolean} isFolder - Whether this is a folder not a collection
+ * @param {Object} options - Options for stringifying
+ * @param {string} options.format - Format to use ('bru', 'yaml')
  * @returns {string} - Stringified collection content
  */
-const stringifyCollection = (collectionObj, options = { format: 'bru' }) => {
-  if (options.format === 'bru') {
-    return jsonCollectionToBru(collectionObj);
+const stringifyCollection = (collectionObj, isFolder = false, options = {}) => {
+  // Default to BRU format if not specified
+  const format = options.format || 'bru';
+  
+  if (format === 'yaml') {
+    return jsonCollectionToYaml(collectionObj, isFolder);
   }
-  // Future implementations for other formats (e.g., YAML)
-  throw new Error(`Unsupported format: ${options.format}`);
+  
+  // Default to BRU
+  return jsonCollectionToBru(collectionObj, isFolder);
 };
 
 /**
  * Parse a folder from a file
  * @param {string} content - The content of the file
- * @param {Object} options - Options for parsing (e.g., format)
+ * @param {Object} options - Options for parsing
+ * @param {string} options.format - Format to use ('bru', 'yaml', or 'auto')
  * @returns {Object} - Parsed folder object
  */
-const parseFolder = (content, options = { format: 'bru' }) => {
-  if (options.format === 'bru') {
-    return bruCollectionToJson(content);
+const parseFolder = (content, options = {}) => {
+  // If no format is specified, autodetect it
+  const format = options.format || detectFormatFromContent(content);
+  
+  if (format === 'yaml') {
+    return yamlCollectionToJson(content);
   }
-  // Future implementations for other formats (e.g., YAML)
-  throw new Error(`Unsupported format: ${options.format}`);
+  
+  // Default to BRU
+  return bruCollectionToJson(content);
 };
 
 /**
  * Stringify a folder object to file content
  * @param {Object} folderObj - The folder object to stringify
- * @param {Object} options - Options for stringifying (e.g., format)
+ * @param {Object} options - Options for stringifying
+ * @param {string} options.format - Format to use ('bru', 'yaml')
  * @returns {string} - Stringified folder content
  */
-const stringifyFolder = (folderObj, options = { format: 'bru' }) => {
-  if (options.format === 'bru') {
+const stringifyFolder = (folderObj, options = {}) => {
+  // Default to BRU format if not specified
+  const format = options.format || 'bru';
+  
+  if (format === 'yaml') {
     // Pass isFolder=true to indicate this is a folder not a collection
-    return jsonCollectionToBru(folderObj, true);
+    return jsonCollectionToYaml(folderObj, true);
   }
-  // Future implementations for other formats (e.g., YAML)
-  throw new Error(`Unsupported format: ${options.format}`);
+  
+  // Default to BRU
+  // Pass isFolder=true to indicate this is a folder not a collection
+  return jsonCollectionToBru(folderObj, true);
 };
 
 /**
  * Parse an environment from a file
  * @param {string} content - The content of the file
- * @param {Object} options - Options for parsing (e.g., format)
+ * @param {Object} options - Options for parsing
+ * @param {string} options.format - Format to use ('bru', 'yaml', or 'auto')
  * @returns {Object} - Parsed environment object
  */
-const parseEnvironment = (content, options = { format: 'bru' }) => {
-  if (options.format === 'bru') {
-    return bruEnvironmentToJson(content);
+const parseEnvironment = (content, options = {}) => {
+  // If no format is specified, autodetect it
+  const format = options.format || detectFormatFromContent(content);
+  
+  if (format === 'yaml') {
+    return yamlEnvironmentToJson(content);
   }
-  // Future implementations for other formats (e.g., YAML)
-  throw new Error(`Unsupported format: ${options.format}`);
+  
+  // Default to BRU
+  return bruEnvironmentToJson(content);
 };
 
 /**
  * Stringify an environment object to file content
  * @param {Object} envObj - The environment object to stringify
- * @param {Object} options - Options for stringifying (e.g., format)
+ * @param {Object} options - Options for stringifying
+ * @param {string} options.format - Format to use ('bru', 'yaml')
  * @returns {string} - Stringified environment content
  */
-const stringifyEnvironment = (envObj, options = { format: 'bru' }) => {
-  if (options.format === 'bru') {
-    return jsonEnvironmentToBru(envObj);
+const stringifyEnvironment = (envObj, options = {}) => {
+  // Default to BRU format if not specified
+  const format = options.format || 'bru';
+  
+  if (format === 'yaml') {
+    return jsonEnvironmentToYaml(envObj);
   }
-  // Future implementations for other formats (e.g., YAML)
-  throw new Error(`Unsupported format: ${options.format}`);
+  
+  // Default to BRU
+  return jsonEnvironmentToBru(envObj);
 };
 
 /**
@@ -145,7 +201,7 @@ const parseRequestViaWorker = async (data, options = {}) => {
     });
 
     const json = await fileParserWorker.parseRequest(data);
-    return parseRequest(json, { format: 'bru' });
+    return parseRequest(json, { format: options.format || 'bru' });
   }
   
   return parseRequest(data, options);
@@ -164,13 +220,20 @@ const stringifyRequestViaWorker = async (data, options = {}) => {
       scriptsPath
     });
 
-    return fileParserWorker.stringifyRequest(data);
+    return fileParserWorker.stringifyRequest(data, options);
   }
   
   return stringifyRequest(data, options);
 };
 
 module.exports = {
+  // Format detection utilities
+  detectFormatFromContent,
+  detectFormatFromFilename,
+  getExtensionForFormat,
+  getFormatFromCollectionConfig,
+  
+  // Basic parsing/stringifying functions
   parseRequest,
   stringifyRequest,
   parseCollection,
@@ -180,9 +243,9 @@ module.exports = {
   parseEnvironment,
   stringifyEnvironment,
   parseDotEnv,
-  BruParserWorker,
   
-  // Enhanced functions with worker support
+  // Worker-based functions
+  BruParserWorker,
   parseRequestViaWorker,
   stringifyRequestViaWorker
 }; 

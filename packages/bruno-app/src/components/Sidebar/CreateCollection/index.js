@@ -22,7 +22,8 @@ const CreateCollection = ({ onClose }) => {
     initialValues: {
       collectionName: '',
       collectionFolderName: '',
-      collectionLocation: ''
+      collectionLocation: '',
+      fileFormat: 'bru' // Default to BRU format
     },
     validationSchema: Yup.object({
       collectionName: Yup.string()
@@ -37,15 +38,20 @@ const CreateCollection = ({ onClose }) => {
           return isValid ? true : this.createError({ message: validateNameError(value) });
         })
         .required('folder name is required'),
-      collectionLocation: Yup.string().min(1, 'location is required').required('location is required')
+      collectionLocation: Yup.string().min(1, 'location is required').required('location is required'),
+      fileFormat: Yup.string().oneOf(['bru', 'yaml'], 'file format must be either bru or yaml').required('file format is required')
     }),
     onSubmit: (values) => {
-      dispatch(createCollection(values.collectionName, values.collectionFolderName, values.collectionLocation))
+      dispatch(createCollection(values.collectionName, values.collectionFolderName, values.collectionLocation, values.fileFormat))
         .then(() => {
           toast.success('Collection created!');
           onClose();
         })
-        .catch((e) => toast.error('An error occurred while creating the collection - ' + e));
+        .catch((error) => {
+          // Error is already shown by the action, no need to show another toast
+          console.error('Collection creation error:', error);
+          // Don't close the modal on error so user can fix the issue
+        });
     }
   });
 
@@ -135,6 +141,46 @@ const CreateCollection = ({ onClose }) => {
               Browse
             </span>
           </div>
+          
+          <label className="block font-semibold mt-3 flex items-center">
+            File Format
+            <Help>
+              <p>
+                Choose the file format for this collection.
+              </p>
+              <p className="mt-2">
+                BRU is Bruno's custom format, while YAML is a widely-used standard format.
+              </p>
+            </Help>
+          </label>
+          <div className="mt-2 flex items-center space-x-4">
+            <label className="flex items-center cursor-pointer">
+              <input
+                type="radio"
+                name="fileFormat"
+                value="bru"
+                checked={formik.values.fileFormat === 'bru'}
+                onChange={formik.handleChange}
+                className="mr-2"
+              />
+              <span>BRU</span>
+            </label>
+            <label className="flex items-center cursor-pointer">
+              <input
+                type="radio"
+                name="fileFormat"
+                value="yaml"
+                checked={formik.values.fileFormat === 'yaml'}
+                onChange={formik.handleChange}
+                className="mr-2"
+              />
+              <span>YAML</span>
+            </label>
+          </div>
+          {formik.touched.fileFormat && formik.errors.fileFormat ? (
+            <div className="text-red-500">{formik.errors.fileFormat}</div>
+          ) : null}
+          
           {formik.values.collectionName?.trim()?.length > 0 && (
             <div className="mt-4">
               <div className="flex items-center justify-between">

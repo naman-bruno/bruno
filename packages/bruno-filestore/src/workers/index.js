@@ -1,4 +1,5 @@
 const path = require("path");
+const { detectFormatFromContent } = require("../utils/format-detector");
 
 /**
  * Get size of data in MB
@@ -64,6 +65,11 @@ class BruParserWorker {
 
     this.WorkerQueue = WorkerQueue;
     this.scriptsPath = scriptsPath;
+    
+    // Initialize worker queues for each lane
+    LANES.forEach(lane => {
+      lane.workerQueue = new WorkerQueue();
+    });
   }
 
   /**
@@ -88,55 +94,82 @@ class BruParserWorker {
    * @param {string} params.scriptFile - Script file name
    * @returns {Promise<any>} Task result
    */
-  async enqueueTask({data, scriptFile }) {
+  async enqueueTask({data, scriptFile, options = {} }) {
     const size = getSize(data);
     const workerQueue = this.getWorkerQueue(size);
     return workerQueue.enqueue({
       data,
       priority: size,
-      scriptPath: path.join(this.scriptsPath, `${scriptFile}.js`)
+      scriptPath: path.join(this.scriptsPath, `${scriptFile}.js`),
+      options
     });
   }
 
   /**
    * Convert BRU to JSON asynchronously
    * @param {string} data - BRU content
+   * @param {Object} options - Options for parsing
    * @returns {Promise<Object>} JSON object
    */
-  async bruToJson(data) {
-    return this.enqueueTask({ data, scriptFile: `bru-to-json` });
+  async bruToJson(data, options = {}) {
+    return this.enqueueTask({ 
+      data, 
+      scriptFile: `bru-to-json`,
+      options 
+    });
   }
 
   /**
    * Convert JSON to BRU asynchronously
    * @param {Object} data - JSON object
+   * @param {Object} options - Options for stringifying
    * @returns {Promise<string>} BRU content
    */
-  async jsonToBru(data) {
-    return this.enqueueTask({ data, scriptFile: `json-to-bru` });
-  }
-
-  /**
-   * Parse request from BRU format to JSON asynchronously
-   * @param {string} data - BRU content
-   * @returns {Promise<Object>} JSON object representing the request
-   */
-  async parseRequest(data) {
-    return this.WorkerQueue.enqueue({
-      data,
-      scriptPath: `${this.scriptsPath}/bru-to-json.js`
+  async jsonToBru(data, options = {}) {
+    return this.enqueueTask({ 
+      data, 
+      scriptFile: `json-to-bru`,
+      options 
     });
   }
 
   /**
-   * Stringify request from JSON to BRU format asynchronously
-   * @param {Object} data - JSON object representing the request
-   * @returns {Promise<string>} BRU content
+   * Parse request from file format to JSON asynchronously
+   * @param {string} data - File content (BRU or YAML)
+   * @param {Object} options - Options for parsing
+   * @returns {Promise<Object>} JSON object representing the request
    */
-  async stringifyRequest(data) {
-    return this.WorkerQueue.enqueue({
+  async parseRequest(data, options = {}) {
+    // If format not specified, auto-detect it
+    const format = options.format || detectFormatFromContent(data);
+    
+    // Use the appropriate script based on format
+    const scriptFile = format === 'yaml' ? 'yaml-to-json' : 'bru-to-json';
+    
+    return this.enqueueTask({
       data,
-      scriptPath: `${this.scriptsPath}/json-to-bru.js`
+      scriptFile,
+      options
+    });
+  }
+
+  /**
+   * Stringify request from JSON to file format asynchronously
+   * @param {Object} data - JSON object representing the request
+   * @param {Object} options - Options for stringifying
+   * @returns {Promise<string>} File content (BRU or YAML)
+   */
+  async stringifyRequest(data, options = {}) {
+    // Default to BRU format if not specified
+    const format = options.format || 'bru';
+    
+    // Use the appropriate script based on format
+    const scriptFile = format === 'yaml' ? 'json-to-yaml' : 'json-to-bru';
+    
+    return this.enqueueTask({
+      data,
+      scriptFile,
+      options
     });
   }
 }
