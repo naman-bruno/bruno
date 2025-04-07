@@ -4,8 +4,6 @@ const {
   jsonToBruV2,
   bruToEnvJsonV2,
   envJsonToBruV2,
-  collectionBruToJson: _collectionBruToJson,
-  jsonToCollectionBru: _jsonToCollectionBru
 } = require('@usebruno/lang');
 
 /**
@@ -114,7 +112,7 @@ const jsonRequestToBru = (json) => {
  */
 const bruCollectionToJson = (data, parsed = false) => {
   try {
-    const json = parsed ? data : _collectionBruToJson(data);
+    const json = parsed ? data : bruToJsonV2(data);
 
     const transformedJson = {
       request: {
@@ -175,7 +173,7 @@ const jsonCollectionToBru = (json, isFolder) => {
       collectionBruJson.auth = _.get(json, 'request.auth', {});
     }
 
-    return _jsonToCollectionBru(collectionBruJson);
+    return jsonToBruV2(collectionBruJson);
   } catch (error) {
     return Promise.reject(error);
   }

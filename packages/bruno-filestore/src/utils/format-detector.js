@@ -69,9 +69,21 @@ const getFormatFromCollectionConfig = (collectionConfig) => {
   return collectionConfig.fileFormat === 'yaml' ? 'yaml' : 'bru';
 };
 
+// Get file extension based on format
+const getFileExtensionForFormat = (format) => {
+  switch (format) {
+    case 'yaml':
+      return '.yaml';
+    case 'bru':
+    default:
+      return '.bru';
+  }
+};
+
 module.exports = {
   detectFormatFromContent,
   detectFormatFromFilename,
   getExtensionForFormat,
-  getFormatFromCollectionConfig
+  getFormatFromCollectionConfig,
+  getFileExtensionForFormat
 }; 

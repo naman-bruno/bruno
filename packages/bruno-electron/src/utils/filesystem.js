@@ -93,7 +93,7 @@ const hasJsonExtension = (filename) => {
 
 const hasBruExtension = (filename) => {
   if (!filename || typeof filename !== 'string') return false;
-  return ['bru'].some((ext) => filename.toLowerCase().endsWith(`.${ext}`));
+  return ['.bru', '.yaml'].some((ext) => filename.toLowerCase().endsWith(ext));
 };
 
 const createDirectory = async (dir) => {
@@ -142,15 +142,15 @@ const chooseFileToSave = async (win, preferredFileName = '') => {
   return filePath;
 };
 
-const searchForFiles = (dir, extension) => {
+const searchForFiles = (dir, extensions) => {
   let results = [];
   const files = fs.readdirSync(dir);
   for (const file of files) {
     const filePath = path.join(dir, file);
     const stat = fs.statSync(filePath);
     if (stat.isDirectory()) {
-      results = results.concat(searchForFiles(filePath, extension));
-    } else if (path.extname(file) === extension) {
+      results = results.concat(searchForFiles(filePath, extensions));
+    } else if (extensions.includes(path.extname(file))) {
       results.push(filePath);
     }
   }
@@ -158,7 +158,7 @@ const searchForFiles = (dir, extension) => {
 };
 
 const searchForBruFiles = (dir) => {
-  return searchForFiles(dir, '.bru');
+  return searchForFiles(dir, ['.bru', '.yaml']);
 };
 
 const sanitizeName = (name) => {
@@ -234,7 +234,8 @@ const getCollectionStats = async (directoryPath) => {
         await calculateStats(fullPath);
       }
 
-      if (path.extname(fullPath) === '.bru') {
+      const ext = path.extname(fullPath);
+      if (ext === '.bru' || ext === '.yaml') {
         const stats = await fsPromises.stat(fullPath);
         size += stats?.size;
         if (maxFileSize < stats?.size) {
@@ -249,11 +250,12 @@ const getCollectionStats = async (directoryPath) => {
 
   await calculateStats(directoryPath);
 
-  size = sizeInMB(size);
-  maxFileSize = sizeInMB(maxFileSize);
-
-  return { size, filesCount, maxFileSize };
-}
+  return {
+    size: sizeInMB(size || 0), // size in MB
+    filesCount: filesCount || 0,
+    maxFileSize: sizeInMB(maxFileSize || 0) // max file size in MB
+  };
+};
 
 const sizeInMB = (size) => {
   return size / (1024 * 1024);

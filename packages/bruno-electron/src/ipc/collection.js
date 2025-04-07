@@ -12,7 +12,9 @@ const {
   stringifyRequest,
   stringifyCollection,
   parseRequestViaWorker,
-  stringifyRequestViaWorker
+  stringifyRequestViaWorker,
+  getFormatFromCollectionConfig,
+  getFileExtensionForFormat
 } = require('@usebruno/filestore');
 const { workerConfig } = require('../workers/parser-worker');
 
@@ -124,8 +126,18 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
         brunoConfig.size = size;
         brunoConfig.filesCount = filesCount;
 
-        mainWindow.webContents.send('main:collection-opened', dirPath, uid, brunoConfig);
+        // Include the fileFormat in the response to the front-end
+        mainWindow.webContents.send('main:collection-opened', dirPath, uid, {
+          ...brunoConfig,
+          fileFormat: fileFormat || 'bru'
+        });
         ipcMain.emit('main:collection-opened', mainWindow, dirPath, uid, brunoConfig);
+        
+        return {
+          uid,
+          path: dirPath,
+          fileFormat: fileFormat || 'bru'
+        };
       } catch (error) {
         return Promise.reject(error);
       }
@@ -208,24 +220,78 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
   ipcMain.handle('renderer:save-folder-root', async (event, folder) => {
     try {
       const { name: folderName, root: folderRoot, pathname: folderPathname } = folder;
-      const folderBruFilePath = path.join(folderPathname, 'folder.bru');
-
+      
+      // Get the file format and use it when stringifying
+      const fileFormat = await getFileFormatForPath(folderPathname);
+      
+      // Get the appropriate file extension based on format
+      const fileExtension = getFileExtensionForFormat(fileFormat);
+      const folderFilePath = path.join(folderPathname, `folder${fileExtension}`);
+      
       folderRoot.meta = {
         name: folderName
       };
 
-      const content = await stringifyCollection(folderRoot, true);
-      await writeFile(folderBruFilePath, content);
+      const content = await stringifyCollection(folderRoot, true, { format: fileFormat });
+      await writeFile(folderFilePath, content);
     } catch (error) {
       return Promise.reject(error);
     }
   });
+
+  // Find the collection path by going up the directory tree until we find bruno.json
+  const findCollectionPath = (startPath) => {
+    let currentPath = startPath;
+    // If startPath is a file, get its directory
+    if (fs.existsSync(startPath) && !fs.lstatSync(startPath).isDirectory()) {
+      currentPath = path.dirname(startPath);
+    }
+    
+    while (currentPath !== path.parse(currentPath).root) {
+      const brunoJsonPath = path.join(currentPath, 'bruno.json');
+      if (fs.existsSync(brunoJsonPath)) {
+        return currentPath;
+      }
+      currentPath = path.dirname(currentPath);
+    }
+    
+    return null;
+  };
+
+  // Get file format from collection configuration
+  const getFileFormatForCollection = async (collectionPathname) => {
+    try {
+      const brunoJsonPath = path.join(collectionPathname, 'bruno.json');
+      if (fs.existsSync(brunoJsonPath)) {
+        const content = fs.readFileSync(brunoJsonPath, 'utf8');
+        const config = JSON.parse(content);
+        return config.fileFormat || 'bru'; // Default to bru if not specified
+      }
+      return 'bru'; // Default to bru if bruno.json not found
+    } catch (error) {
+      console.error('Error determining file format:', error);
+      return 'bru'; // Default to bru on error
+    }
+  };
+
+  // Get the file format for a given path
+  const getFileFormatForPath = async (filePath) => {
+    const collectionPath = findCollectionPath(filePath);
+    return collectionPath ? await getFileFormatForCollection(collectionPath) : 'bru';
+  };
+
   ipcMain.handle('renderer:save-collection-root', async (event, collectionPathname, collectionRoot) => {
     try {
-      const collectionBruFilePath = path.join(collectionPathname, 'collection.bru');
-
-      const content = await stringifyCollection(collectionRoot);
-      await writeFile(collectionBruFilePath, content);
+      // Get the file format from the collection's configuration
+      const fileFormat = await getFileFormatForCollection(collectionPathname);
+      
+      // Get the appropriate file extension based on format
+      const fileExtension = getFileExtensionForFormat(fileFormat);
+      const collectionFilePath = path.join(collectionPathname, `collection${fileExtension}`);
+      
+      // Use the file format when stringifying
+      const content = await stringifyCollection(collectionRoot, false, { format: fileFormat });
+      await writeFile(collectionFilePath, content);
     } catch (error) {
       return Promise.reject(error);
     }
@@ -241,7 +307,10 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
       if (!validateName(request?.filename)) {
         throw new Error(`${request.filename}.bru is not a valid filename`);
       }
-      const content = await stringifyRequest(request);
+      
+      // Get the file format and use it when stringifying
+      const fileFormat = await getFileFormatForPath(pathname);
+      const content = await stringifyRequest(request, { format: fileFormat });
       await writeFile(pathname, content);
     } catch (error) {
       return Promise.reject(error);
@@ -255,7 +324,9 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
         throw new Error(`path: ${pathname} does not exist`);
       }
 
-      const content = await stringifyRequest(request);
+      // Get the file format and use it when stringifying
+      const fileFormat = await getFileFormatForPath(pathname);
+      const content = await stringifyRequest(request, { format: fileFormat });
       await writeFile(pathname, content);
     } catch (error) {
       return Promise.reject(error);
@@ -273,7 +344,9 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
           throw new Error(`path: ${pathname} does not exist`);
         }
 
-        const content = await stringifyRequest(request);
+        // Get the file format and use it when stringifying
+        const fileFormat = await getFileFormatForPath(pathname);
+        const content = await stringifyRequest(request, { format: fileFormat });
         await writeFile(pathname, content);
       }
     } catch (error) {
@@ -303,7 +376,9 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
         environmentSecretsStore.storeEnvSecrets(collectionPathname, environment);
       }
 
-      const content = await stringifyEnvironment(environment);
+      // Get the file format and use it when stringifying
+      const fileFormat = await getFileFormatForCollection(collectionPathname);
+      const content = await stringifyEnvironment(environment, { format: fileFormat });
 
       await writeFile(envFilePath, content);
     } catch (error) {
@@ -328,7 +403,10 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
         environmentSecretsStore.storeEnvSecrets(collectionPathname, environment);
       }
 
-      const content = await stringifyEnvironment(environment);
+      // Get the file format and use it when stringifying
+      const fileFormat = await getFileFormatForCollection(collectionPathname);
+      const content = await stringifyEnvironment(environment, { format: fileFormat });
+      
       await writeFile(envFilePath, content);
     } catch (error) {
       return Promise.reject(error);
@@ -377,27 +455,41 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
   // rename item
   ipcMain.handle('renderer:rename-item-name', async (event, { itemPath, newName }) => {
     try {
-
       if (!fs.existsSync(itemPath)) {
         throw new Error(`path: ${itemPath} does not exist`);
       }
 
       if (isDirectory(itemPath)) {
-        const folderBruFilePath = path.join(itemPath, 'folder.bru');
+        // Get the file format and use it when stringifying
+        const fileFormat = await getFileFormatForPath(itemPath);
+        
+        // Get the appropriate file extension based on format
+        const fileExtension = getFileExtensionForFormat(fileFormat);
+        const folderFilePath = path.join(itemPath, `folder${fileExtension}`);
+        
         let folderBruFileJsonContent;
-        if (fs.existsSync(folderBruFilePath)) {
-          const oldFolderBruFileContent = await fs.promises.readFile(folderBruFilePath, 'utf8');
+        if (fs.existsSync(folderFilePath)) {
+          const oldFolderBruFileContent = await fs.promises.readFile(folderFilePath, 'utf8');
           folderBruFileJsonContent = await parseCollection(oldFolderBruFileContent);
         } else {
-          folderBruFileJsonContent = {};
+          // Try to read the file with old .bru extension for backward compatibility
+          const oldFolderBruFilePath = path.join(itemPath, 'folder.bru');
+          if (fs.existsSync(oldFolderBruFilePath)) {
+            const oldFolderBruFileContent = await fs.promises.readFile(oldFolderBruFilePath, 'utf8');
+            folderBruFileJsonContent = await parseCollection(oldFolderBruFileContent);
+            // Delete the old file so we can create a new one with the correct extension
+            await fs.promises.unlink(oldFolderBruFilePath);
+          } else {
+            folderBruFileJsonContent = {};
+          }
         }
 
         folderBruFileJsonContent.meta = {
           name: newName,
         };
 
-        const folderBruFileContent = await stringifyCollection(folderBruFileJsonContent, true);
-        await writeFile(folderBruFilePath, folderBruFileContent);
+        const folderBruFileContent = await stringifyCollection(folderBruFileJsonContent, true, { format: fileFormat });
+        await writeFile(folderFilePath, folderBruFileContent);
 
         return;
       }
@@ -410,7 +502,11 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
       const data = fs.readFileSync(itemPath, 'utf8');
       const jsonData = await parseEnvironment(data);
       jsonData.name = newName;
-      const content = await stringifyEnvironment(jsonData);
+      
+      // Get the file format and use it when stringifying
+      const fileFormat = await getFileFormatForPath(itemPath);
+      const content = await stringifyEnvironment(jsonData, { format: fileFormat });
+      
       await writeFile(itemPath, content);
     } catch (error) {
       return Promise.reject(error);
@@ -432,21 +528,34 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
       }
 
       if (isDirectory(oldPath)) {
-        const folderBruFilePath = path.join(oldPath, 'folder.bru');
+        // Get the file format and use it when stringifying
+        const fileFormat = await getFileFormatForPath(oldPath);
+        
+        // Get the appropriate file extension based on format
+        const fileExtension = getFileExtensionForFormat(fileFormat);
+        const folderFilePath = path.join(oldPath, `folder${fileExtension}`);
+        
         let folderBruFileJsonContent;
-        if (fs.existsSync(folderBruFilePath)) {
-          const oldFolderBruFileContent = await fs.promises.readFile(folderBruFilePath, 'utf8');
+        if (fs.existsSync(folderFilePath)) {
+          const oldFolderBruFileContent = await fs.promises.readFile(folderFilePath, 'utf8');
           folderBruFileJsonContent = await parseCollection(oldFolderBruFileContent);
         } else {
-          folderBruFileJsonContent = {};
+          // Try to read the file with old .bru extension for backward compatibility
+          const oldFolderBruFilePath = path.join(oldPath, 'folder.bru');
+          if (fs.existsSync(oldFolderBruFilePath)) {
+            const oldFolderBruFileContent = await fs.promises.readFile(oldFolderBruFilePath, 'utf8');
+            folderBruFileJsonContent = await parseCollection(oldFolderBruFileContent);
+          } else {
+            folderBruFileJsonContent = {};
+          }
         }
 
         folderBruFileJsonContent.meta = {
           name: newName,
         };
 
-        const folderBruFileContent = await stringifyCollection(folderBruFileJsonContent, true);
-        await writeFile(folderBruFilePath, folderBruFileContent);
+        const folderBruFileContent = await stringifyCollection(folderBruFileJsonContent, true, { format: fileFormat });
+        await writeFile(folderFilePath, folderBruFileContent);
         
         const bruFilesAtSource = await searchForBruFiles(oldPath);
 
@@ -460,9 +569,6 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
          * And it is not a WSL path (meaning it is not running in WSL (linux pathtype))
          * And it has sub directories
          * Only then we need to use the temp dir approach to rename the folder
-         *
-         * Windows OS would sometimes throw error when renaming a folder with sub directories
-         * This is an alternative approach to avoid that error
          */
         if (isWindowsOSAndNotWSLPathAndItemHasSubDirectories) {
           await fsExtra.copy(oldPath, tempDir);
@@ -485,12 +591,15 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
       }
 
       // update name in file and save new copy, then delete old copy
-      const data = await fs.promises.readFile(oldPath, 'utf8'); // Use async read
+      const data = await fs.promises.readFile(oldPath, 'utf8');
       const jsonData = await parseRequest(data);
       jsonData.name = newName;
       moveRequestUid(oldPath, newPath);
 
-      const content = await stringifyRequest(jsonData);
+      // Get the file format and use it when stringifying
+      const fileFormat = await getFileFormatForPath(oldPath);
+      const content = await stringifyRequest(jsonData, { format: fileFormat });
+      
       await fs.promises.unlink(oldPath);
       await writeFile(newPath, content);
 
@@ -520,14 +629,22 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
     try {
       if (!fs.existsSync(pathname)) {
         fs.mkdirSync(pathname);
-        const folderBruFilePath = path.join(pathname, 'folder.bru');
+        
+        // Get the file format and use it when stringifying
+        const fileFormat = await getFileFormatForPath(pathname);
+        
+        // Get the appropriate file extension based on format
+        const fileExtension = getFileExtensionForFormat(fileFormat);
+        const folderFilePath = path.join(pathname, `folder${fileExtension}`);
+        
         let data = {
           meta: {
             name: folderName,
           }
         };
-        const content = await stringifyCollection(data, true); // isFolder flag
-        await writeFile(folderBruFilePath, content);
+        
+        const content = await stringifyCollection(data, true, { format: fileFormat }); // isFolder flag
+        await writeFile(folderFilePath, content);
       } else {
         return Promise.reject(new Error('The directory already exists'));
       }

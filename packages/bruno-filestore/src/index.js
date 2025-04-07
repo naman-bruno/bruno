@@ -20,7 +20,8 @@ const {
   detectFormatFromContent,
   detectFormatFromFilename,
   getExtensionForFormat,
-  getFormatFromCollectionConfig
+  getFormatFromCollectionConfig,
+  getFileExtensionForFormat
 } = require('./utils/format-detector');
 
 /**
@@ -232,6 +233,7 @@ module.exports = {
   detectFormatFromFilename,
   getExtensionForFormat,
   getFormatFromCollectionConfig,
+  getFileExtensionForFormat,
   
   // Basic parsing/stringifying functions
   parseRequest,

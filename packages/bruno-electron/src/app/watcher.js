@@ -50,7 +50,7 @@ const isBruEnvironmentConfig = (pathname, collectionPath) => {
 const isCollectionRootBruFile = (pathname, collectionPath) => {
   const dirname = path.dirname(pathname);
   const basename = path.basename(pathname);
-  return dirname === collectionPath && basename === 'collection.bru';
+  return dirname === collectionPath && (basename === 'collection.bru' || basename === 'collection.yaml');
 };
 
 const hydrateBruCollectionFileWithUuid = (collectionRoot) => {
