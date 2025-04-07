@@ -227,7 +227,7 @@ const add = async (win, pathname, collectionUid, collectionPath, useWorkerThread
   }
 
   // Is this a folder.bru file?
-  if (path.basename(pathname) === 'folder.bru') {
+  if (path.basename(pathname) === 'folder.bru' || path.basename(pathname) === 'folder.yaml') {
     const file = {
       meta: {
         collectionUid,
@@ -409,7 +409,7 @@ const change = async (win, pathname, collectionUid, collectionPath) => {
     }
   }
 
-  if (path.basename(pathname) === 'folder.bru') {
+  if (path.basename(pathname) === 'folder.bru' || path.basename(pathname) === 'folder.yaml') {
     const file = {
       meta: {
         collectionUid,
@@ -481,8 +481,7 @@ const unlinkDir = async (win, pathname, collectionUid, collectionPath) => {
   }
 
 
-  const folderBruFilePath = path.join(pathname, `folder.bru`);
-
+  const folderBruFilePath = path.join(pathname, `folder.bru`) || path.join(pathname, `folder.yaml`);
   let name = path.basename(pathname);
 
   if (fs.existsSync(folderBruFilePath)) {
