@@ -1,5 +1,6 @@
 const { customAlphabet } = require('nanoid');
 const iconv = require('iconv-lite');
+const { cloneDeep } = require('lodash');
 
 // a customized version of nanoid without using _ and -
 const uuid = () => {
@@ -26,10 +27,24 @@ const parseJson = async (obj) => {
   }
 };
 
-const safeStringifyJSON = (data) => {
+const getCircularReplacer = () => {
+  const seen = new WeakSet();
+  return (key, value) => {
+    if (typeof value === "object" && value !== null) {
+      if (seen.has(value)) return "[Circular]";
+      seen.add(value);
+    }
+    return value;
+  };
+};
+
+const safeStringifyJSON = (data, indent = null) => {
+  if (data === undefined) return undefined;
   try {
-    return JSON.stringify(data);
+    // getCircularReplacer - removes circular references that cause an error when stringifying
+    return JSON.stringify(data, getCircularReplacer(), indent);
   } catch (e) {
+    console.warn('Failed to stringify data:', e.message);
     return data;
   }
 };
@@ -112,6 +127,16 @@ const parseDataFromResponse = (response, disableParsingResponseJson = false) => 
   return { data, dataBuffer };
 };
 
+const parseDataFromRequest = (request) => {
+  const requestDataString = request.mode == 'file'? "<request body redacted>": (typeof request?.data === 'string' ? request?.data : safeStringifyJSON(request?.data));
+  const requestCopy = cloneDeep(request);
+  if (!requestCopy.data) {
+    return { data: null, dataBuffer: null };
+  }
+  requestCopy.data = requestDataString;
+  return parseDataFromResponse(requestCopy);
+};
+
 const safeErrorToString = (error, prefix = '') => {
   if (error === null || error === undefined) {
     return `${prefix}Unknown error`;
@@ -146,5 +171,6 @@ module.exports = {
   generateUidBasedOnHash,
   flattenDataForDotNotation,
   parseDataFromResponse,
+  parseDataFromRequest,
   safeErrorToString
 };
