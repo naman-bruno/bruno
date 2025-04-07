@@ -383,7 +383,7 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
       // Get the file format and use it when stringifying
       const fileFormat = await getFileFormatForCollection(collectionPathname);
       const fileExtension = getFileExtensionForFormat(fileFormat);
-      
+
       const envFilePath = path.join(envDirPath, `${name}${fileExtension}`);
       
       if (fs.existsSync(envFilePath)) {
@@ -415,21 +415,45 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
         await createDirectory(envDirPath);
       }
 
-      const envFilePath = path.join(envDirPath, `${environment.name}.bru`);
-      if (!fs.existsSync(envFilePath)) {
-        throw new Error(`environment: ${envFilePath} does not exist`);
+      // Get the file format and use it when stringifying
+      const fileFormat = await getFileFormatForCollection(collectionPathname);
+      const fileExtension = getFileExtensionForFormat(fileFormat);
+      
+      // Create paths for both possible extensions for backward compatibility
+      const envFilePath = path.join(envDirPath, `${environment.name}${fileExtension}`);
+      const bruEnvFilePath = path.join(envDirPath, `${environment.name}bru`);
+      const yamlEnvFilePath = path.join(envDirPath, `${environment.name}yaml`);
+      
+      // Check if any of the environment files exist
+      if (!fs.existsSync(envFilePath) && !fs.existsSync(bruEnvFilePath) && !fs.existsSync(yamlEnvFilePath)) {
+        throw new Error(`environment: Cannot find environment ${environment.name}`);
+      }
+      
+      // Store the actual path we'll write to
+      let actualFilePath = envFilePath;
+      
+      // If the file with the correct extension doesn't exist but a legacy one does, use the legacy path
+      if (!fs.existsSync(actualFilePath)) {
+        if (fs.existsSync(bruEnvFilePath)) {
+          actualFilePath = bruEnvFilePath;
+        } else if (fs.existsSync(yamlEnvFilePath)) {
+          actualFilePath = yamlEnvFilePath;
+        }
       }
 
       if (envHasSecrets(environment)) {
         environmentSecretsStore.storeEnvSecrets(collectionPathname, environment);
       }
 
-      // Get the file format and use it when stringifying
-      const fileFormat = await getFileFormatForCollection(collectionPathname);
+      // Create environment content with the correct format
       const content = await stringifyEnvironment(environment, { format: fileFormat });
       
-      await writeFile(envFilePath, content);
+      await writeFile(actualFilePath, content);
+      
+      // Return the actual path that was used
+      return actualFilePath;
     } catch (error) {
+      console.error('Error saving environment:', error);
       return Promise.reject(error);
     }
   });
@@ -438,12 +462,26 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
   ipcMain.handle('renderer:rename-environment', async (event, collectionPathname, environmentName, newName) => {
     try {
       const envDirPath = path.join(collectionPathname, 'environments');
-      const envFilePath = path.join(envDirPath, `${environmentName}.bru`);
-      if (!fs.existsSync(envFilePath)) {
-        throw new Error(`environment: ${envFilePath} does not exist`);
+      
+      // Get the file format and use it to determine the extension
+      const fileFormat = await getFileFormatForCollection(collectionPathname);
+      const fileExtension = getFileExtensionForFormat(fileFormat);
+      
+      // Try both old and new extensions for the source file
+      let envFilePath = null;
+      const bruEnvFilePath = path.join(envDirPath, `${environmentName}bru`);
+      const yamlEnvFilePath = path.join(envDirPath, `${environmentName}yaml`);
+      
+      if (fs.existsSync(bruEnvFilePath)) {
+        envFilePath = bruEnvFilePath;
+      } else if (fs.existsSync(yamlEnvFilePath)) {
+        envFilePath = yamlEnvFilePath;
+      } else {
+        throw new Error(`environment: cannot find environment ${environmentName}`);
       }
-
-      const newEnvFilePath = path.join(envDirPath, `${newName}.bru`);
+      
+      // Create the new path with the correct extension based on file format
+      const newEnvFilePath = path.join(envDirPath, `${newName}${fileExtension}`);
       if (!safeToRename(envFilePath, newEnvFilePath)) {
         throw new Error(`environment: ${newEnvFilePath} already exists`);
       }
@@ -451,7 +489,10 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
       fs.renameSync(envFilePath, newEnvFilePath);
 
       environmentSecretsStore.renameEnvironment(collectionPathname, environmentName, newName);
+      
+      return newEnvFilePath;
     } catch (error) {
+      console.error('Error renaming environment:', error);
       return Promise.reject(error);
     }
   });
@@ -460,15 +501,37 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
   ipcMain.handle('renderer:delete-environment', async (event, collectionPathname, environmentName) => {
     try {
       const envDirPath = path.join(collectionPathname, 'environments');
-      const envFilePath = path.join(envDirPath, `${environmentName}.bru`);
-      if (!fs.existsSync(envFilePath)) {
-        throw new Error(`environment: ${envFilePath} does not exist`);
+      
+      // Ensure name doesn't already have an extension
+      const baseName = environmentName.endsWith('.bru') || environmentName.endsWith('.yaml') 
+        ? environmentName.substring(0, environmentName.lastIndexOf('.'))
+        : environmentName;
+      
+      // Try both extensions
+      const bruEnvFilePath = path.join(envDirPath, `${baseName}bru`);
+      const yamlEnvFilePath = path.join(envDirPath, `${baseName}yaml`);
+      
+      let fileDeleted = false;
+      
+      if (fs.existsSync(bruEnvFilePath)) {
+        console.log(`Deleting environment file: ${bruEnvFilePath}`);
+        fs.unlinkSync(bruEnvFilePath);
+        fileDeleted = true;
+      }
+      
+      if (fs.existsSync(yamlEnvFilePath)) {
+        console.log(`Deleting environment file: ${yamlEnvFilePath}`);
+        fs.unlinkSync(yamlEnvFilePath);
+        fileDeleted = true;
+      }
+      
+      if (!fileDeleted) {
+        throw new Error(`environment: cannot find environment ${baseName}`);
       }
 
-      fs.unlinkSync(envFilePath);
-
-      environmentSecretsStore.deleteEnvironment(collectionPathname, environmentName);
+      environmentSecretsStore.deleteEnvironment(collectionPathname, baseName);
     } catch (error) {
+      console.error('Error deleting environment:', error);
       return Promise.reject(error);
     }
   });
