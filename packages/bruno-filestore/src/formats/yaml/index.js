@@ -4,6 +4,7 @@
  */
 
 const yaml = require('js-yaml');
+const path = require('path');
 
 /**
  * Convert YAML request to JSON object
@@ -14,29 +15,93 @@ const yamlRequestToJson = (yamlContent) => {
   try {
     // Parse YAML to JSON
     const jsonData = yaml.load(yamlContent);
+    if (!jsonData) {
+      throw new Error('Failed to parse YAML content - empty or invalid YAML');
+    }
     
     // Extract request type (http or graphql)
-    const requestType = jsonData.http ? 'http' : 'graphql';
+    let requestType = 'http-request';
+    if (jsonData.meta && jsonData.meta.type) {
+      if (jsonData.meta.type === 'http') {
+        requestType = 'http-request';
+      } else if (jsonData.meta.type === 'graphql') {
+        requestType = 'graphql-request';
+      }
+    }
     
-    // Create a well-formed Bruno request object
-    return {
-      meta: jsonData.meta || {},
-      name: jsonData.meta?.name || 'Unnamed Request',
+    const name = jsonData.meta?.name || path.basename(jsonData.filename || '', path.extname(jsonData.filename || '')) || 'Unnamed Request';
+    
+    const transformedJson = {
+      uid: jsonData.uid || null, // Will be set by hydrateRequestWithUuid later
+      name: name,
+      filename: jsonData.filename || name,
       seq: jsonData.meta?.seq || 1,
       type: requestType,
-      [requestType]: jsonData[requestType] || {},
-      vars: jsonData.vars || {},
-      tests: jsonData.tests,
-      scripts: jsonData.scripts || {},
-      docs: jsonData.docs
+      request: {
+        method: (jsonData.http?.method || 'GET').toUpperCase(),
+        url: jsonData.http?.url || '',
+        headers: jsonData.headers || [],
+        params: jsonData.params || [],
+        auth: jsonData.auth || { mode: jsonData.http?.auth || 'none' },
+        body: {
+          mode: jsonData.body?.mode || jsonData.http?.body || 'none',
+          json: jsonData.body?.json || null,
+          text: jsonData.body?.text || null,
+          xml: jsonData.body?.xml || null,
+          sparql: jsonData.body?.sparql || null,
+          multipartForm: jsonData.body?.multipartForm || [],
+          formUrlEncoded: jsonData.body?.formUrlEncoded || [],
+          file: jsonData.body?.file || []
+        },
+        script: {
+          req: (jsonData.script && jsonData.script.req) || '',
+          res: (jsonData.script && jsonData.script.res) || ''
+        },
+        vars: {
+          req: (jsonData.vars && jsonData.vars.req) || [],
+          res: (jsonData.vars && jsonData.vars.res) || []
+        },
+        assertions: jsonData.assertions || [],
+        tests: jsonData.tests || '',
+        docs: jsonData.docs || ''
+      }
     };
+
+    return transformedJson;
   } catch (error) {
-    throw new Error(`Failed to parse YAML request: ${error.message}`);
+    console.error('Error in yamlRequestToJson:', error);
+    return {
+      name: 'Error Parsing Request',
+      type: 'http-request',
+      seq: 1,
+      request: {
+        method: 'GET',
+        url: '',
+        headers: [],
+        params: [],
+        auth: { mode: 'none' },
+        body: {
+          mode: 'none',
+          json: null,
+          text: null,
+          xml: null,
+          sparql: null,
+          multipartForm: [],
+          formUrlEncoded: [],
+          file: []
+        },
+        script: { req: '', res: '' },
+        vars: { req: [], res: [] },
+        assertions: [],
+        tests: '',
+        docs: ''
+      }
+    };
   }
 };
 
 /**
- * Convert JSON request to YAML string
+ * Convert JSON request object to YAML string
  * @param {Object} jsonData - JSON request object
  * @returns {string} - YAML content
  */
@@ -45,37 +110,96 @@ const jsonRequestToYaml = (jsonData) => {
     // Clone the data to avoid modifying the original
     const requestData = { ...jsonData };
     
-    // Extract the request type
-    const requestType = requestData.type;
-    
     // Create a well-formed YAML structure
     const yamlObj = {
-      meta: requestData.meta || {
+      meta: {
         name: requestData.name,
+        type: requestData.type === 'http-request' ? 'http' : 
+              requestData.type === 'graphql-request' ? 'graphql' : 'http',
         seq: requestData.seq || 1
+      },
+      http: {
+        method: (requestData.request?.method).toLowerCase(),
+        url: requestData.request?.url,
+        body: (requestData.request?.body?.mode),
+        auth: (requestData.request?.auth?.mode)
       }
     };
-    
-    // Add request-specific data
-    if (requestType === 'http' || requestType === 'graphql') {
-      yamlObj[requestType] = requestData[requestType];
+
+    // Add auth section if it exists
+    if (requestData.request?.auth) {
+      yamlObj.auth = {
+        mode: requestData.request.auth.mode || 'inherit'
+      };
+      
+      // Add auth specific fields
+      if (requestData.request.auth.bearer) {
+        yamlObj.auth.bearer = requestData.request.auth.bearer;
+      }
+      if (requestData.request.auth.basic) {
+        yamlObj.auth.basic = requestData.request.auth.basic;
+      }
+      // Add other auth types as needed
     }
     
-    // Add optional fields if they exist
-    if (requestData.vars) {
-      yamlObj.vars = requestData.vars;
+    // Add body section if it exists
+    if (requestData.request?.body) {
+      yamlObj.body = {
+        mode: requestData.request.body.mode || 'none'
+      };
+      
+      // Add body type specific content
+      if (requestData.request.body.json) {
+        yamlObj.body.json = requestData.request.body.json;
+      }
+      if (requestData.request.body.text) {
+        yamlObj.body.text = requestData.request.body.text;
+      }
+      if (requestData.request.body.xml) {
+        yamlObj.body.xml = requestData.request.body.xml;
+      }
+      if (requestData.request.body.sparql) {
+        yamlObj.body.sparql = requestData.request.body.sparql;
+      }
+      if (requestData.request.body.multipartForm) {
+        yamlObj.body.multipartForm = requestData.request.body.multipartForm;
+      }
+      if (requestData.request.body.formUrlEncoded) {
+        yamlObj.body.formUrlEncoded = requestData.request.body.formUrlEncoded;
+      }
+      if (requestData.request.body.file) {
+        yamlObj.body.file = requestData.request.body.file;
+      }
     }
     
-    if (requestData.tests) {
-      yamlObj.tests = requestData.tests;
+    // Add headers if they exist
+    if (requestData.request?.headers && requestData.request.headers.length > 0) {
+      yamlObj.headers = requestData.request.headers;
     }
     
-    if (requestData.scripts) {
-      yamlObj.scripts = requestData.scripts;
+    // Add params if they exist
+    if (requestData.request?.params && requestData.request.params.length > 0) {
+      yamlObj.params = requestData.request.params;
     }
     
-    if (requestData.docs) {
-      yamlObj.docs = requestData.docs;
+    // Add script if it exists
+    if (requestData.request?.script) {
+      yamlObj.script = requestData.request.script;
+    }
+    
+    // Add vars if they exist
+    if (requestData.request?.vars) {
+      yamlObj.vars = requestData.request.vars;
+    }
+    
+    // Add tests if they exist
+    if (requestData.request?.tests) {
+      yamlObj.tests = requestData.request.tests;
+    }
+    
+    // Add docs if they exist
+    if (requestData.request?.docs) {
+      yamlObj.docs = requestData.request.docs;
     }
     
     // Convert to YAML string

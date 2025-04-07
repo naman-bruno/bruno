@@ -303,15 +303,33 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
       if (fs.existsSync(pathname)) {
         throw new Error(`path: ${pathname} already exists`);
       }
+      
       // For the actual filename part, we want to be strict
       if (!validateName(request?.filename)) {
-        throw new Error(`${request.filename}.bru is not a valid filename`);
+        throw new Error(`${request.filename} is not a valid filename`);
       }
       
-      // Get the file format and use it when stringifying
-      const fileFormat = await getFileFormatForPath(pathname);
+      // Get the file format from the collection
+      const collectionPath = findCollectionPath(pathname);
+      const fileFormat = await getFileFormatForCollection(collectionPath);
+      
+      // Get the correct file extension for the format
+      const fileExtension = getFileExtensionForFormat(fileFormat);
+      
+      // Fix the pathname to use the correct extension based on format
+      const dir = path.dirname(pathname);
+      const filenameBase = path.basename(pathname, path.extname(pathname));
+      const newPathname = path.join(dir, `${filenameBase}${fileExtension}`);
+      
+      console.log(`Creating file with format ${fileFormat}, extension ${fileExtension}, path: ${newPathname}`);
+      
+      // Create the request content with the correct format
       const content = await stringifyRequest(request, { format: fileFormat });
-      await writeFile(pathname, content);
+      
+      // Save the file with the correct extension
+      await writeFile(newPathname, content);
+      
+      return newPathname; // Return the actual path used for the file
     } catch (error) {
       return Promise.reject(error);
     }
@@ -362,7 +380,12 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
         await createDirectory(envDirPath);
       }
 
-      const envFilePath = path.join(envDirPath, `${name}.bru`);
+      // Get the file format and use it when stringifying
+      const fileFormat = await getFileFormatForCollection(collectionPathname);
+      const fileExtension = getFileExtensionForFormat(fileFormat);
+      
+      const envFilePath = path.join(envDirPath, `${name}${fileExtension}`);
+      
       if (fs.existsSync(envFilePath)) {
         throw new Error(`environment: ${envFilePath} already exists`);
       }
@@ -376,8 +399,6 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
         environmentSecretsStore.storeEnvSecrets(collectionPathname, environment);
       }
 
-      // Get the file format and use it when stringifying
-      const fileFormat = await getFileFormatForCollection(collectionPathname);
       const content = await stringifyEnvironment(environment, { format: fileFormat });
 
       await writeFile(envFilePath, content);

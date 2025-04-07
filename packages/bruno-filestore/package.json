@@ -14,7 +14,7 @@
   "author": "Bruno API Client",
   "license": "MIT",
   "dependencies": {
-    "@usebruno/lang": "^0.4.0",
+    "@usebruno/lang": "0.22.0",
     "js-yaml": "^4.1.0"
   },
   "jest": {

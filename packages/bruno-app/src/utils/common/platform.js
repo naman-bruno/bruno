@@ -10,8 +10,13 @@ export const isElectron = () => {
   return window.ipcRenderer ? true : false;
 };
 
-export const resolveRequestFilename = (name) => {
-  return `${trim(name)}.bru`;
+export const resolveRequestFilename = (name, format = 'bru') => {
+  const extension = format === 'yaml' ? '.yaml' : '.bru';
+  const baseName = name.endsWith('.bru') || name.endsWith('.yaml') 
+    ? name.substring(0, name.lastIndexOf('.'))
+    : trim(name);
+    
+  return `${baseName}${extension}`;
 };
 
 export const getSubdirectoriesFromRoot = (rootPath, pathname) => {
