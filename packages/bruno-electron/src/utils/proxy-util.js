@@ -6,6 +6,7 @@ const { SocksProxyAgent } = require('socks-proxy-agent');
 const { HttpProxyAgent } = require('http-proxy-agent');
 const { preferencesUtil } = require('../store/preferences');
 const { isEmpty, get, isUndefined, isNull } = require('lodash');
+const { safeErrorToString } = require('./common');
 
 const DEFAULT_PORTS = {
   ftp: 21,
@@ -94,10 +95,11 @@ function createTimelineAgentClass(BaseAgentClass) {
         const tlsOptions = {
           ...agentOptions,
           rejectUnauthorized: agentOptions.rejectUnauthorized ?? true,
+          ALPNProtocols: agentOptions.ALPNProtocols || ['h2', 'http/1.1'],
         };
         super(proxyUri, tlsOptions);
         this.timeline = Array.isArray(timeline) ? timeline : [];
-        this.alpnProtocols = tlsOptions.ALPNProtocols || ['h2', 'http/1.1'];
+        this.alpnProtocols = tlsOptions.ALPNProtocols;
         this.caProvided = !!tlsOptions.ca;
 
         // Log TLS verification status
@@ -118,11 +120,12 @@ function createTimelineAgentClass(BaseAgentClass) {
         const tlsOptions = {
           ...options,
           rejectUnauthorized: options.rejectUnauthorized ?? true,
+          ALPNProtocols: options.ALPNProtocols || ['h2', 'http/1.1'],
         };   
         super(tlsOptions);
         this.timeline = Array.isArray(timeline) ? timeline : [];
-        this.alpnProtocols = options.ALPNProtocols || ['h2', 'http/1.1'];
-        this.caProvided = !!options.ca;
+        this.alpnProtocols = tlsOptions.ALPNProtocols;
+        this.caProvided = !!tlsOptions.ca;
 
         // Log TLS verification status
         this.timeline.push({
@@ -136,15 +139,6 @@ function createTimelineAgentClass(BaseAgentClass) {
 
     createConnection(options, callback) {
       const { host, port } = options;
-
-      // Log ALPN protocols offered
-      if (this.alpnProtocols && this.alpnProtocols.length > 0) {
-        this.timeline.push({
-          timestamp: new Date(),
-          type: 'tls',
-          message: `ALPN: offers ${this.alpnProtocols.join(', ')}`,
-        });
-      }
 
       // Log CAfile and CApath (if possible)
       if (this.caProvided) {
@@ -168,6 +162,10 @@ function createTimelineAgentClass(BaseAgentClass) {
         message: `Trying ${host}:${port}...`,
       });
 
+      if (this.alpnProtocols && this.alpnProtocols.length > 0) {
+        options.ALPNProtocols = this.alpnProtocols;
+      }
+
       const socket = super.createConnection(options, callback);
 
       // Attach event listeners to the socket
@@ -176,7 +174,7 @@ function createTimelineAgentClass(BaseAgentClass) {
           this.timeline.push({
             timestamp: new Date(),
             type: 'error',
-            message: `DNS lookup error for ${host}: ${err.message}`,
+            message: `DNS lookup error for ${host}: ${err.message || err.toString() || 'Unknown error'}`,
           });
         } else {
           this.timeline.push({
@@ -196,6 +194,14 @@ function createTimelineAgentClass(BaseAgentClass) {
           type: 'info',
           message: `Connected to ${host} (${address}) port ${remotePort}`,
         });
+        
+        if (this.alpnProtocols && this.alpnProtocols.length > 0) {
+          this.timeline.push({
+            timestamp: new Date(),
+            type: 'tls',
+            message: `ALPN: Bruno offers ${this.alpnProtocols.join(',')}`,
+          });
+        }
       });
 
       socket.on('secureConnect', () => {
@@ -210,11 +216,13 @@ function createTimelineAgentClass(BaseAgentClass) {
         });
 
         // ALPN protocol
-        const alpnProtocol = socket.alpnProtocol || 'None';
+        const alpnProtocol = socket.alpnProtocol;
         this.timeline.push({
           timestamp: new Date(),
           type: 'tls',
-          message: `ALPN: server accepted ${alpnProtocol}`,
+          message: alpnProtocol 
+            ? `ALPN: server accepted ${alpnProtocol}`
+            : `ALPN: server did not accept any protocol (using default)`,
         });
 
         // Server certificate
@@ -274,7 +282,7 @@ function createTimelineAgentClass(BaseAgentClass) {
         this.timeline.push({
           timestamp: new Date(),
           type: 'error',
-          message: `Socket error: ${err.message}`,
+          message: safeErrorToString(err, 'Socket error: '),
         });
       });
 

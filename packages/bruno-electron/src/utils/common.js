@@ -112,6 +112,30 @@ const parseDataFromResponse = (response, disableParsingResponseJson = false) => 
   return { data, dataBuffer };
 };
 
+const safeErrorToString = (error, prefix = '') => {
+  if (error === null || error === undefined) {
+    return `${prefix}Unknown error`;
+  }
+  
+  if (typeof error === 'string') {
+    return `${prefix}${error}`;
+  }
+  
+  if (error instanceof Error) {
+    return `${prefix}${error.message || error.toString()}`;
+  }
+  
+  if (typeof error === 'object') {
+    try {
+      return `${prefix}${error.message || safeStringifyJSON(error)}`;
+    } catch (e) {
+      return `${prefix}Error object could not be stringified`;
+    }
+  }
+  
+  return `${prefix}${String(error)}`;
+};
+
 module.exports = {
   uuid,
   stringifyJson,
@@ -121,5 +145,6 @@ module.exports = {
   simpleHash,
   generateUidBasedOnHash,
   flattenDataForDotNotation,
-  parseDataFromResponse
+  parseDataFromResponse,
+  safeErrorToString
 };

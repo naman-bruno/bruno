@@ -10,9 +10,36 @@ const Network = ({ logs }) => {
   )
 }
 
+const safeMessageToString = (message) => {
+  if (message === null || message === undefined) {
+    return "";
+  }
+  
+  if (typeof message === 'string') {
+    return message;
+  }
+  
+  if (message instanceof Error) {
+    return message.toString();
+  }
+  
+  if (typeof message === 'object') {
+    try {
+      return JSON.stringify(message);
+    } catch (e) {
+      return "Error object could not be stringified";
+    }
+  }
+  
+  return String(message);
+};
+
 const NetworkLogsEntry = ({ entry }) => {
   const { type, message } = entry;
   let className = '';
+  
+  // Simple, safe conversion of any message type to string
+  const safeMessage = safeMessageToString(message);
 
   switch (type) {
     case 'request':
@@ -37,7 +64,7 @@ const NetworkLogsEntry = ({ entry }) => {
 
   return (
     <div className={`${className}`}>
-      <div>{message}</div>
+      <div>{safeMessage}</div>
     </div>
   );
 };

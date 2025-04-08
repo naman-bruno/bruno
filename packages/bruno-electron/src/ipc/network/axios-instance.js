@@ -6,7 +6,7 @@ const electronApp = require("electron");
 const { setupProxyAgents } = require('../../utils/proxy-util');
 const { addCookieToJar, getCookieStringForUrl } = require('../../utils/cookies');
 const { preferencesUtil } = require('../../store/preferences');
-const { safeStringifyJSON } = require('../../utils/common');
+const { safeStringifyJSON, safeErrorToString } = require('../../utils/common');
 
 const LOCAL_IPV6 = '::1';
 const LOCAL_IPV4 = '127.0.0.1';
@@ -176,7 +176,7 @@ function makeAxiosInstance({
       timeline.push({
         timestamp: new Date(),
         type: 'error',
-        message: err?.message,
+        message: safeErrorToString(err),
       });
     }
     config.metadata.timeline = timeline;
@@ -233,7 +233,7 @@ function makeAxiosInstance({
       timeline?.push({
         timestamp: new Date(),
         type: 'error',
-        message: 'there was an error executing the request!'
+        message: safeErrorToString(error, 'Request error: '),
       });
       if (error.response) {
         const end = Date.now();
@@ -264,17 +264,17 @@ function makeAxiosInstance({
 
           if (redirectCount >= requestMaxRedirects) {
             const errorResponseData = error.response.data;
-            const dataBuffer = Buffer.isBuffer(errorResponseData) ? errorResponseData : Buffer.from(errorResponseData);
+            const dataBuffer = Buffer.isBuffer(errorResponseData) ? errorResponseData : Buffer.from(errorResponseData || '');
             timeline?.push({
               timestamp: new Date(),
               type: 'error',
-              message: safeStringifyJSON(errorResponseData?.toString?.())
+              message: safeErrorToString(errorResponseData),
             });
             return {
               status: error.response.status,
               statusText: error.response.statusText,
               headers: error.response.headers,
-              data: errorResponseData?.toString?.(),
+              data: safeErrorToString(errorResponseData),
               size: Buffer.byteLength(dataBuffer),
               duration: error.response.headers.get('request-duration') ?? 0,
               timeline: error.response.timeline
@@ -334,7 +334,7 @@ function makeAxiosInstance({
         }
         else {
           const errorResponseData = error.response.data;
-          const dataBuffer = Buffer.isBuffer(errorResponseData) ? errorResponseData : Buffer.from(errorResponseData);
+          const dataBuffer = Buffer.isBuffer(errorResponseData) ? errorResponseData : Buffer.from(errorResponseData || '');
           Object.entries(error?.response?.headers || {}).forEach(([key, value]) => {
             timeline.push({
               timestamp: new Date(),
@@ -345,23 +345,29 @@ function makeAxiosInstance({
           timeline?.push({
             timestamp: new Date(),
             type: 'error',
-            message: safeStringifyJSON(errorResponseData?.toString?.())
+            message: safeErrorToString(errorResponseData),
           });
-          error?.cause && timeline?.push({
-            timestamp: new Date(),
-            type: 'error',
-            message: safeStringifyJSON(error?.cause)
-          });
-          error?.errors && timeline?.push({
-            timestamp: new Date(),
-            type: 'error',
-            message: safeStringifyJSON(error?.errors)
-          });
+          
+          if (error?.cause) {
+            timeline?.push({
+              timestamp: new Date(),
+              type: 'error',
+              message: safeErrorToString(error.cause, 'Cause: '),
+            });
+          }
+          
+          if (error?.errors) {
+            timeline?.push({
+              timestamp: new Date(),
+              type: 'error',
+              message: safeErrorToString(error.errors, 'Errors: '),
+            });
+          }
           return {
             status: error.response.status,
             statusText: error.response.statusText,
             headers: error.response.headers,
-            data: errorResponseData?.toString?.(),
+            data: safeErrorToString(errorResponseData),
             size: Buffer.byteLength(dataBuffer),
             duration: error.response.headers.get('request-duration') ?? 0,
             timeline
@@ -376,16 +382,22 @@ function makeAxiosInstance({
             message: `${key}: ${value}`,
           });
         });
-        timeline?.push({
-          timestamp: new Date(),
-          type: 'error',
-          message: safeStringifyJSON(error?.cause)
-        });
-        timeline?.push({
-          timestamp: new Date(),
-          type: 'error',
-          message: safeStringifyJSON(error?.errors)
-        });
+        
+        if (error?.cause) {
+          timeline?.push({
+            timestamp: new Date(),
+            type: 'error',
+            message: safeErrorToString(error.cause, 'Cause: '),
+          });
+        }
+        
+        if (error?.errors) {
+          timeline?.push({
+            timestamp: new Date(),
+            type: 'error',
+            message: safeErrorToString(error.errors, 'Errors: '),
+          });
+        }
         return {
           status: '-',
           statusText: error.code,
