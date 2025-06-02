@@ -71,6 +71,7 @@
     "react-player": "^2.16.0",
     "react-redux": "^7.2.9",
     "react-tooltip": "^5.5.2",
+    "reactflow": "^11.11.4",
     "sass": "^1.46.0",
     "semver": "^7.7.1",
     "strip-json-comments": "^5.0.1",

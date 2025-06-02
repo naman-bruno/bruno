@@ -1378,3 +1378,53 @@ export const mountCollection = ({ collectionUid, collectionPathname, brunoConfig
       ipcRenderer.invoke('renderer:show-in-folder', collectionPath).then(resolve).catch(reject);
     });
   };
+
+export const runWorkflowCollection = (workflowCollection, originalCollectionUid) => (dispatch, getState) => {
+  const state = getState();
+  const { globalEnvironments, activeGlobalEnvironmentUid } = state.globalEnvironments;  
+  const originalCollection = findCollectionByUid(state.collections.collections, originalCollectionUid);
+
+  return new Promise((resolve, reject) => {
+    if (!originalCollection) {
+      return reject(new Error('Original collection not found'));
+    }
+
+    if (!workflowCollection) {
+      return reject(new Error('Workflow collection not provided'));
+    }
+
+    // Use the pre-modified workflow collection directly
+    let collectionCopy = cloneDeep(workflowCollection);
+
+    // add selected global env variables to the collection object
+    const globalEnvironmentVariables = getGlobalEnvironmentVariables({ globalEnvironments, activeGlobalEnvironmentUid });
+    collectionCopy.globalEnvironmentVariables = globalEnvironmentVariables;
+
+    // Use the environment from the original collection
+    const environment = findEnvironmentInCollection(originalCollection, originalCollection.activeEnvironmentUid);
+
+    // Reset run results using the original collection UID for UI updates
+    dispatch(
+      resetRunResults({
+        collectionUid: originalCollectionUid
+      })
+    );
+
+    const { ipcRenderer } = window;
+    ipcRenderer
+      .invoke(
+        'renderer:run-collection-folder',
+        null, // folder - null since we're running the entire workflow collection
+        collectionCopy, // Use the workflow-converted collection
+        environment,
+        collectionCopy.runtimeVariables || originalCollection.runtimeVariables,
+        false, // recursive - false since workflow is already flattened
+        0 // delay
+      )
+      .then(resolve)
+      .catch((err) => {
+        toast.error(get(err, 'error.message') || 'Something went wrong!');
+        reject(err);
+      });
+  });
+};

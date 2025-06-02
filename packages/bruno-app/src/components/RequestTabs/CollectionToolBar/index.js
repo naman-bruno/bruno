@@ -1,6 +1,6 @@
 import React from 'react';
 import { uuid } from 'utils/common';
-import { IconFiles, IconRun, IconEye, IconSettings } from '@tabler/icons';
+import { IconFiles, IconRun, IconEye, IconSettings, IconGitBranch, IconPlus, IconCode, IconArrowBranch, IconX } from '@tabler/icons';
 import EnvironmentSelector from 'components/Environments/EnvironmentSelector';
 import GlobalEnvironmentSelector from 'components/GlobalEnvironments/EnvironmentSelector';
 import { addTab } from 'providers/ReduxStore/slices/tabs';
@@ -18,6 +18,16 @@ const CollectionToolBar = ({ collection }) => {
         uid: uuid(),
         collectionUid: collection.uid,
         type: 'collection-runner'
+      })
+    );
+  };
+
+  const handleWorkflow = () => {
+    dispatch(
+      addTab({
+        uid: uuid(),
+        collectionUid: collection.uid,
+        type: 'workflow'
       })
     );
   };
@@ -56,6 +66,11 @@ const CollectionToolBar = ({ collection }) => {
           <span className="mr-3">
             <ToolHint text="Runner" toolhintId="RunnnerToolhintId" place='bottom'>
               <IconRun className="cursor-pointer" size={18} strokeWidth={1.5} onClick={handleRun} />
+            </ToolHint>
+          </span>
+          <span className="mr-3">
+            <ToolHint text="Workflow" toolhintId="WorkflowToolhintId" place='bottom'>
+              <IconGitBranch className="cursor-pointer" size={18} strokeWidth={1.5} onClick={handleWorkflow} />
             </ToolHint>
           </span>
           <span className="mr-3">

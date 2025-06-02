@@ -1,6 +1,6 @@
 import React from 'react';
 import CloseTabIcon from './CloseTabIcon';
-import { IconVariable, IconSettings, IconRun, IconFolder, IconShieldLock } from '@tabler/icons';
+import { IconVariable, IconSettings, IconRun, IconFolder, IconShieldLock, IconGitBranch } from '@tabler/icons';
 
 const SpecialTab = ({ handleCloseClick, type, tabName, handleDoubleClick }) => {
   const getTabInfo = (type, tabName) => {
@@ -50,6 +50,14 @@ const SpecialTab = ({ handleCloseClick, type, tabName, handleDoubleClick }) => {
           <>
             <IconRun size={18} strokeWidth={1.5} className="text-yellow-600" />
             <span className="ml-1 leading-6">Runner</span>
+          </>
+        );
+      }
+      case 'workflow': {
+        return (
+          <>
+            <IconGitBranch size={18} strokeWidth={1.5} className="text-yellow-600" />
+            <span className="ml-1 leading-6">Workflow</span>
           </>
         );
       }

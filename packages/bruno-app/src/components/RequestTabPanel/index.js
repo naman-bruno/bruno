@@ -15,6 +15,7 @@ import NetworkError from 'components/ResponsePane/NetworkError';
 import RunnerResults from 'components/RunnerResults';
 import VariablesEditor from 'components/VariablesEditor';
 import CollectionSettings from 'components/CollectionSettings';
+import WorkflowResults from 'components/WorkflowResults';
 import { DocExplorer } from '@usebruno/graphql-docs';
 
 import StyledWrapper from './StyledWrapper';
@@ -148,6 +149,10 @@ const RequestTabPanel = () => {
 
   if (focusedTab.type === 'collection-runner') {
     return <RunnerResults collection={collection} />;
+  }
+
+  if (focusedTab.type === 'workflow') {
+    return <WorkflowResults collection={collection} />;
   }
 
   if (focusedTab.type === 'variables') {
