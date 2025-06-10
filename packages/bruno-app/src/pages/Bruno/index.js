@@ -4,6 +4,8 @@ import Welcome from 'components/Welcome';
 import RequestTabs from 'components/RequestTabs';
 import RequestTabPanel from 'components/RequestTabPanel';
 import Sidebar from 'components/Sidebar';
+import StatusBar from 'components/StatusBar';
+import Terminal from 'components/Terminal';
 import { useSelector } from 'react-redux';
 import StyledWrapper from './StyledWrapper';
 import 'codemirror/theme/material.css';
@@ -59,20 +61,24 @@ export default function Main() {
   });
 
   return (
-    <div>
-      <StyledWrapper className={className}>
-        <Sidebar />
-        <section className="flex flex-grow flex-col overflow-auto">
-          {showHomePage ? (
-            <Welcome />
-          ) : (
-            <>
-              <RequestTabs />
-              <RequestTabPanel key={activeTabUid} />
-            </>
-          )}
-        </section>
-      </StyledWrapper>
+    <div className="flex flex-col h-screen max-h-screen overflow-hidden">
+      <div className="flex-1 min-h-0">
+        <StyledWrapper className={className}>
+          <Sidebar />
+          <section className="flex flex-grow flex-col overflow-auto">
+            {showHomePage ? (
+              <Welcome />
+            ) : (
+              <>
+                <RequestTabs />
+                <RequestTabPanel key={activeTabUid} />
+              </>
+            )}
+          </section>
+        </StyledWrapper>
+      </div>
+      <Terminal />
+      <StatusBar />
     </div>
   );
 }
