@@ -6,11 +6,11 @@ const StyledWrapper = styled.div`
     align-items: center;
     justify-content: space-between;
     padding: 0 16px;
-    height: 36px;
-    background: ${(props) => props.theme.statusBar?.bg || props.theme.sidebar.bg};
-    border-top: 1px solid ${(props) => props.theme.statusBar?.borderColor || props.theme.sidebar.borderColor};
-    color: ${(props) => props.theme.statusBar?.color || props.theme.sidebar.color};
-    font-size: 13px;
+    height: 22px;
+    background: ${(props) => props.theme.sidebar.bg};
+    border-top: 1px solid ${(props) => props.theme.sidebar.dragbar};
+    color: ${(props) => props.theme.sidebar.color};
+    font-size: 12px;
     user-select: none;
     backdrop-filter: blur(8px);
     position: relative;
@@ -34,21 +34,26 @@ const StyledWrapper = styled.div`
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
-    padding: 6px;
+    width: 24px;
+    height: 20px;
+    padding: 4px;
     background: transparent;
     border: none;
-    border-radius: 6px;
-    color: ${(props) => props.theme.statusBar?.buttonColor || props.theme.sidebar.color};
+    border-radius: 4px;
+    color: ${(props) => props.theme.sidebar.color};
     cursor: pointer;
     opacity: 0.7;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     position: relative;
     
+    &:hover {
+      opacity: 1;
+      background: ${(props) => props.theme.sidebar.collection.item.hoverBg};
+    }
+    
     &:active {
       transform: translateY(0);
-      background: ${(props) => props.theme.statusBar?.buttonActiveBg || 'rgba(255,255,255,0.12)'};
+      background: ${(props) => props.theme.sidebar.collection.item.bg};
     }
     
     &:focus {
@@ -58,17 +63,23 @@ const StyledWrapper = styled.div`
 
     &:focus-visible {
       outline: none;
-      box-shadow: 0 0 0 2px ${(props) => props.theme.statusBar?.focusColor || props.theme.button.secondary.focusBorder};
+      box-shadow: 0 0 0 2px ${(props) => props.theme.button.secondary.border};
     }
 
     &.has-errors {
-      color: #f14c4c;
+      color: ${(props) => props.theme.colors.text.danger};
       opacity: 1;
       
       &:hover {
-        background: rgba(241, 76, 76, 0.1);
-        color: #f14c4c;
+        background: ${(props) => props.theme.sidebar.collection.item.hoverBg};
+        color: ${(props) => props.theme.colors.text.danger};
       }
+    }
+
+    &.terminal-button {
+      width: auto;
+      padding: 4px 8px;
+      min-width: 24px;
     }
 
     svg {
@@ -80,44 +91,26 @@ const StyledWrapper = styled.div`
     display: flex;
     align-items: center;
     justify-content: center;
+    gap: 6px;
     position: relative;
   }
 
-  .error-indicator {
-    position: absolute;
-    top: -6px;
-    right: -8px;
-    display: flex;
-    align-items: center;
-    gap: 1px;
-    background: #f14c4c;
-    color: white;
-    border-radius: 8px;
-    padding: 1px 4px;
-    font-size: 9px;
-    font-weight: 600;
-    line-height: 1;
-    min-width: 16px;
-    height: 12px;
-    justify-content: center;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-    animation: pulse 2s infinite;
-
-    .error-count {
-      font-size: 8px;
-      margin-left: 1px;
-    }
+  .terminal-label {
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
   }
 
-  @keyframes pulse {
-    0%, 100% {
-      opacity: 1;
-      transform: scale(1);
-    }
-    50% {
-      opacity: 0.8;
-      transform: scale(0.95);
-    }
+  .error-count-inline {
+    font-size: 10px;
+    font-weight: 600;
+    color: ${(props) => props.theme.colors.text.danger};
+    background: ${(props) => props.theme.colors.bg.danger}20;
+    padding: 1px 4px;
+    border-radius: 4px;
+    min-width: 16px;
+    text-align: center;
+    line-height: 1.2;
   }
 
   .status-bar-notifications {
@@ -134,8 +127,8 @@ const StyledWrapper = styled.div`
 
   .status-bar-divider {
     width: 1px;
-    height: 20px;
-    background: ${(props) => props.theme.statusBar?.dividerColor || props.theme.sidebar.borderColor};
+    height: 16px;
+    background: ${(props) => props.theme.sidebar.dragbar};
     margin: 0 8px;
     opacity: 0.3;
   }
@@ -143,56 +136,21 @@ const StyledWrapper = styled.div`
   .status-bar-version {
     display: flex;
     align-items: center;
-    padding: 4px 8px;
-    font-size: 11px;
+    padding: 2px 6px;
+    font-size: 10px;
     font-weight: 500;
-    color: ${(props) => props.theme.statusBar?.versionColor || props.theme.text};
+    color: ${(props) => props.theme.sidebar.muted};
     opacity: 0.6;
-    background: ${(props) => props.theme.statusBar?.versionBg || 'rgba(255,255,255,0.05)'};
-    border-radius: 12px;
-    border: 1px solid ${(props) => props.theme.statusBar?.versionBorder || 'rgba(255,255,255,0.1)'};
+    background: ${(props) => props.theme.sidebar.collection.item.bg};
+    border-radius: 10px;
+    border: 1px solid ${(props) => props.theme.sidebar.dragbar};
     font-family: ui-monospace, 'SF Mono', 'Monaco', 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
     letter-spacing: 0.5px;
     transition: all 0.2s ease;
 
     &:hover {
       opacity: 0.8;
-      background: ${(props) => props.theme.statusBar?.versionHoverBg || 'rgba(255,255,255,0.08)'};
-    }
-  }
-
-  /* Dark theme optimizations */
-  [data-theme="dark"] & {
-    .status-bar {
-      background: ${(props) => props.theme.statusBar?.bg || '#1a1a1a'};
-      border-top-color: ${(props) => props.theme.statusBar?.borderColor || '#333'};
-    }
-
-    .status-bar-button:hover {
-      background: rgba(255, 255, 255, 0.1);
-    }
-
-    .status-bar-version {
-      background: rgba(255, 255, 255, 0.08);
-      border-color: rgba(255, 255, 255, 0.15);
-    }
-  }
-
-  /* Light theme optimizations */
-  [data-theme="light"] & {
-    .status-bar {
-      background: ${(props) => props.theme.statusBar?.bg || '#f8f9fa'};
-      border-top-color: ${(props) => props.theme.statusBar?.borderColor || '#e9ecef'};
-    }
-
-    .status-bar-button:hover {
-      background: rgba(0, 0, 0, 0.05);
-    }
-
-    .status-bar-version {
-      background: rgba(0, 0, 0, 0.03);
-      border-color: rgba(0, 0, 0, 0.1);
-      color: #6c757d;
+      background: ${(props) => props.theme.sidebar.collection.item.hoverBg};
     }
   }
 
@@ -200,18 +158,34 @@ const StyledWrapper = styled.div`
   @media (max-width: 768px) {
     .status-bar {
       padding: 0 12px;
-      height: 32px;
+      height: 20px;
     }
 
     .status-bar-button {
-      width: 24px;
-      height: 24px;
-      padding: 4px;
+      width: 20px;
+      height: 18px;
+      padding: 3px;
+      
+      &.terminal-button {
+        width: auto;
+        padding: 3px 6px;
+        min-width: 20px;
+      }
+    }
+
+    .terminal-label {
+      font-size: 10px;
+    }
+
+    .error-count-inline {
+      font-size: 9px;
+      padding: 1px 3px;
+      min-width: 14px;
     }
 
     .status-bar-version {
-      font-size: 10px;
-      padding: 2px 6px;
+      font-size: 9px;
+      padding: 1px 4px;
     }
   }
 `;

@@ -3,6 +3,7 @@ import { createSlice } from '@reduxjs/toolkit';
 const initialState = {
   logs: [],
   isTerminalOpen: false,
+  activeTab: 'console', // 'console' or 'network'
   filters: {
     info: true,
     warn: true,
@@ -10,6 +11,16 @@ const initialState = {
     debug: true,
     log: true
   },
+  networkFilters: {
+    GET: true,
+    POST: true,
+    PUT: true,
+    DELETE: true,
+    PATCH: true,
+    HEAD: true,
+    OPTIONS: true
+  },
+  selectedRequest: null, // For network tab details panel
   maxLogs: 1000 // Limit to prevent memory issues
 };
 
@@ -47,6 +58,13 @@ export const logsSlice = createSlice({
     closeTerminal: (state) => {
       state.isTerminalOpen = false;
     },
+    setActiveTab: (state, action) => {
+      state.activeTab = action.payload;
+      // Clear selected request when switching tabs
+      if (action.payload !== 'network') {
+        state.selectedRequest = null;
+      }
+    },
     updateFilter: (state, action) => {
       const { filterType, enabled } = action.payload;
       state.filters[filterType] = enabled;
@@ -56,6 +74,22 @@ export const logsSlice = createSlice({
       Object.keys(state.filters).forEach(key => {
         state.filters[key] = enabled;
       });
+    },
+    updateNetworkFilter: (state, action) => {
+      const { method, enabled } = action.payload;
+      state.networkFilters[method] = enabled;
+    },
+    toggleAllNetworkFilters: (state, action) => {
+      const enabled = action.payload;
+      Object.keys(state.networkFilters).forEach(key => {
+        state.networkFilters[key] = enabled;
+      });
+    },
+    setSelectedRequest: (state, action) => {
+      state.selectedRequest = action.payload;
+    },
+    clearSelectedRequest: (state) => {
+      state.selectedRequest = null;
     }
   }
 });
@@ -66,8 +100,13 @@ export const {
   toggleTerminal, 
   openTerminal, 
   closeTerminal, 
+  setActiveTab,
   updateFilter, 
-  toggleAllFilters 
+  toggleAllFilters,
+  updateNetworkFilter,
+  toggleAllNetworkFilters,
+  setSelectedRequest,
+  clearSelectedRequest
 } = logsSlice.actions;
 
 export default logsSlice.reducer; 

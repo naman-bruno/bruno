@@ -1,22 +1,28 @@
 import styled from 'styled-components';
 
 const StyledWrapper = styled.div`
-  position: relative;
+  position: fixed;
+  bottom: 22px; /* Account for status bar height */
+  left: 0;
+  right: 0;
   width: 100%;
-  background: ${(props) => props.theme.terminal?.bg || props.theme.bg || '#1e1e1e'};
-  border-top: 1px solid ${(props) => props.theme.terminal?.border || props.theme.borderColor || '#3c3c3c'};
+  background: ${(props) => props.theme.terminal.bg};
+  border-top: 1px solid ${(props) => props.theme.terminal.border};
   display: flex;
   flex-direction: column;
-  animation: slideUp 0.3s ease-out;
+  animation: slideUp 0.2s ease-out;
   box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
   z-index: 10;
+  transform: translateY(0);
 
   @keyframes slideUp {
     from {
       transform: translateY(100%);
+      opacity: 0;
     }
     to {
       transform: translateY(0);
+      opacity: 1;
     }
   }
 
@@ -32,11 +38,11 @@ const StyledWrapper = styled.div`
     z-index: 1;
     
     &:hover {
-      background: ${(props) => props.theme.terminal?.resizeHandleHover || props.theme.button.secondary.bg || '#0078d4'};
+      background: ${(props) => props.theme.terminal.resizeHandleHover};
     }
     
     &:active {
-      background: ${(props) => props.theme.terminal?.resizeHandleActive || props.theme.button.secondary.bg || '#0078d4'};
+      background: ${(props) => props.theme.terminal.resizeHandleActive};
     }
   }
 
@@ -45,40 +51,129 @@ const StyledWrapper = styled.div`
     align-items: center;
     justify-content: space-between;
     padding: 8px 16px;
-    background: ${(props) => props.theme.terminal?.headerBg || props.theme.sidebar.bg || '#2d2d30'};
-    border-bottom: 1px solid ${(props) => props.theme.terminal?.border || props.theme.borderColor || '#3c3c3c'};
+    background: ${(props) => props.theme.terminal.headerBg};
+    border-bottom: 1px solid ${(props) => props.theme.terminal.border};
     flex-shrink: 0;
     position: relative;
   }
 
-  .terminal-title {
+  .terminal-tabs {
     display: flex;
     align-items: center;
-    gap: 8px;
-    color: ${(props) => props.theme.terminal?.titleColor || props.theme.text || '#cccccc'};
-    font-size: 13px;
-    font-weight: 500;
+    gap: 2px;
+  }
 
-    .log-count {
-      color: ${(props) => props.theme.terminal?.countColor || props.theme.textSecondary || '#858585'};
-      font-size: 12px;
-      font-weight: 400;
+  .terminal-tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: ${(props) => props.theme.terminal.buttonColor};
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 12px;
+    font-weight: 500;
+    border-radius: 4px 4px 0 0;
+
+    &:hover {
+      background: ${(props) => props.theme.terminal.buttonHoverBg};
+      color: ${(props) => props.theme.terminal.buttonHoverColor};
+    }
+
+    &.active {
+      color: ${(props) => props.theme.terminal.checkboxColor};
+      border-bottom-color: ${(props) => props.theme.terminal.checkboxColor};
+      background: ${(props) => props.theme.terminal.contentBg};
     }
   }
 
   .terminal-controls {
     display: flex;
     align-items: center;
+    gap: 4px;
+  }
+
+  .terminal-content {
+    flex: 1;
+    overflow: hidden;
+    background: ${(props) => props.theme.terminal.contentBg};
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Tab Content Styles */
+  .tab-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .tab-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    background: ${(props) => props.theme.terminal.headerBg};
+    border-bottom: 1px solid ${(props) => props.theme.terminal.border};
+    flex-shrink: 0;
+  }
+
+  .tab-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: ${(props) => props.theme.terminal.titleColor};
+    font-size: 13px;
+    font-weight: 500;
+
+    .log-count {
+      color: ${(props) => props.theme.terminal.countColor};
+      font-size: 12px;
+      font-weight: 400;
+    }
+  }
+
+  .tab-controls {
+    display: flex;
+    align-items: center;
     gap: 8px;
   }
 
+  .tab-content-area {
+    flex: 1;
+    overflow-y: auto;
+    background: ${(props) => props.theme.terminal.contentBg};
+    min-height: 0;
+  }
+
+  /* Network with Details Layout */
+  .network-with-details {
+    display: flex;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .network-main {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-width: 0; /* Allow flex child to shrink */
+  }
+
+  /* Filter Controls */
   .filter-controls {
     display: flex;
     align-items: center;
     gap: 4px;
     margin-right: 8px;
     padding-right: 8px;
-    border-right: 1px solid ${(props) => props.theme.terminal?.border || props.theme.borderColor || '#3c3c3c'};
+    border-right: 1px solid ${(props) => props.theme.terminal.border};
   }
 
   .action-controls {
@@ -96,13 +191,13 @@ const StyledWrapper = styled.div`
     background: transparent;
     border: none;
     border-radius: 4px;
-    color: ${(props) => props.theme.terminal?.buttonColor || props.theme.text || '#cccccc'};
+    color: ${(props) => props.theme.terminal.buttonColor};
     cursor: pointer;
     transition: all 0.2s ease;
 
     &:hover {
-      background: ${(props) => props.theme.terminal?.buttonHoverBg || 'rgba(255, 255, 255, 0.1)'};
-      color: ${(props) => props.theme.terminal?.buttonHoverColor || props.theme.text || '#ffffff'};
+      background: ${(props) => props.theme.terminal.buttonHoverBg};
+      color: ${(props) => props.theme.terminal.buttonHoverColor};
     }
 
     &.close-button:hover {
@@ -122,17 +217,17 @@ const StyledWrapper = styled.div`
     gap: 6px;
     padding: 6px 8px;
     background: transparent;
-    border: 1px solid ${(props) => props.theme.terminal?.border || props.theme.borderColor || '#3c3c3c'};
+    border: 1px solid ${(props) => props.theme.terminal.border};
     border-radius: 4px;
-    color: ${(props) => props.theme.terminal?.buttonColor || props.theme.text || '#cccccc'};
+    color: ${(props) => props.theme.terminal.buttonColor};
     cursor: pointer;
     transition: all 0.2s ease;
     font-size: 12px;
 
     &:hover {
-      background: ${(props) => props.theme.terminal?.buttonHoverBg || 'rgba(255, 255, 255, 0.1)'};
-      color: ${(props) => props.theme.terminal?.buttonHoverColor || props.theme.text || '#ffffff'};
-      border-color: ${(props) => props.theme.terminal?.buttonHoverBorder || 'rgba(255, 255, 255, 0.2)'};
+      background: ${(props) => props.theme.terminal.buttonHoverBg};
+      color: ${(props) => props.theme.terminal.buttonHoverColor};
+      border-color: ${(props) => props.theme.terminal.border};
     }
 
     .filter-summary {
@@ -148,11 +243,11 @@ const StyledWrapper = styled.div`
     left: 0;
     min-width: 200px;
     max-width: 250px;
-    background: ${(props) => props.theme.terminal?.dropdownBg || props.theme.bg || '#2d2d30'};
-    border: 1px solid ${(props) => props.theme.terminal?.border || props.theme.borderColor || '#3c3c3c'};
+    background: ${(props) => props.theme.terminal.dropdownBg};
+    border: 1px solid ${(props) => props.theme.terminal.border};
     border-radius: 6px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-    z-index: 100;
+    z-index: 1000;
     overflow: hidden;
     
     /* Positioning for right-aligned dropdown */
@@ -161,11 +256,18 @@ const StyledWrapper = styled.div`
       right: 0;
     }
     
-    /* Adjust positioning if dropdown would go off-screen */
-    @media (max-width: 768px) {
+    /* Ensure dropdown doesn't go off-screen */
+    @media (max-width: 1200px) {
       right: 0;
       left: auto;
       min-width: 180px;
+    }
+    
+    @media (max-width: 768px) {
+      right: 0;
+      left: auto;
+      min-width: 160px;
+      max-width: 200px;
     }
   }
 
@@ -174,17 +276,17 @@ const StyledWrapper = styled.div`
     align-items: center;
     justify-content: space-between;
     padding: 8px 12px;
-    background: ${(props) => props.theme.terminal?.dropdownHeaderBg || props.theme.sidebar.bg || '#3c3c3c'};
-    border-bottom: 1px solid ${(props) => props.theme.terminal?.border || props.theme.borderColor || '#3c3c3c'};
+    background: ${(props) => props.theme.terminal.dropdownHeaderBg};
+    border-bottom: 1px solid ${(props) => props.theme.terminal.border};
     font-size: 12px;
     font-weight: 500;
-    color: ${(props) => props.theme.terminal?.titleColor || props.theme.text || '#cccccc'};
+    color: ${(props) => props.theme.terminal.titleColor};
   }
 
   .filter-toggle-all {
     background: transparent;
     border: none;
-    color: ${(props) => props.theme.terminal?.buttonColor || props.theme.text || '#0078d4'};
+    color: ${(props) => props.theme.terminal.buttonColor};
     cursor: pointer;
     font-size: 11px;
     font-weight: 500;
@@ -193,7 +295,7 @@ const StyledWrapper = styled.div`
     transition: all 0.2s ease;
 
     &:hover {
-      background: ${(props) => props.theme.terminal?.buttonHoverBg || props.theme.button.secondary.hoverBg || '#3c3c3c'};
+      background: ${(props) => props.theme.terminal.buttonHoverBg};
     }
   }
 
@@ -209,17 +311,14 @@ const StyledWrapper = styled.div`
     transition: background-color 0.2s ease;
 
     &:hover {
-      background: ${(props) => 
-        props.theme.terminal?.optionHoverBg || 
-        (props.theme.name === 'light' || props.theme.mode === 'light' ? '#f8f9fa' : 'rgba(255, 255, 255, 0.05)')
-      };
+      background: ${(props) => props.theme.terminal.optionHoverBg};
     }
 
     input[type="checkbox"] {
       margin: 0 8px 0 0;
       width: 14px;
       height: 14px;
-      accent-color: ${(props) => props.theme.terminal?.checkboxColor || '#0078d4'};
+      accent-color: ${(props) => props.theme.terminal.checkboxColor};
     }
   }
 
@@ -231,23 +330,16 @@ const StyledWrapper = styled.div`
   }
 
   .filter-option-label {
-    color: ${(props) => props.theme.terminal?.optionLabelColor || props.theme.text || '#cccccc'};
+    color: ${(props) => props.theme.terminal.optionLabelColor};
     font-size: 12px;
     font-weight: 400;
   }
 
   .filter-option-count {
-    color: ${(props) => props.theme.terminal?.optionCountColor || props.theme.textSecondary || '#858585'};
+    color: ${(props) => props.theme.terminal.optionCountColor};
     font-size: 11px;
     font-weight: 400;
     margin-left: auto;
-  }
-
-  .terminal-content {
-    flex: 1;
-    overflow-y: auto;
-    background: ${(props) => props.theme.terminal?.contentBg || props.theme.bg || '#1e1e1e'};
-    min-height: 0;
   }
 
   .terminal-empty {
@@ -256,7 +348,7 @@ const StyledWrapper = styled.div`
     align-items: center;
     justify-content: center;
     height: 100%;
-    color: ${(props) => props.theme.terminal?.emptyColor || props.theme.textSecondary || '#858585'};
+    color: ${(props) => props.theme.terminal.emptyColor};
     text-align: center;
     gap: 8px;
     padding: 40px 20px;
@@ -289,7 +381,7 @@ const StyledWrapper = styled.div`
     transition: background-color 0.1s ease;
 
     &:hover {
-      background: ${(props) => props.theme.terminal?.logHoverBg || 'rgba(128, 128, 128, 0.1)'};
+      background: ${(props) => props.theme.terminal.logHoverBg};
     }
 
     &.error {
@@ -367,7 +459,7 @@ const StyledWrapper = styled.div`
   }
 
   .log-timestamp {
-    color: ${(props) => props.theme.terminal?.timestampColor || props.theme.textSecondary || '#858585'};
+    color: ${(props) => props.theme.terminal.timestampColor};
     font-size: 11px;
     font-weight: 400;
   }
@@ -386,7 +478,7 @@ const StyledWrapper = styled.div`
   }
 
   .log-message {
-    color: ${(props) => props.theme.terminal?.messageColor || props.theme.text || '#cccccc'};
+    color: ${(props) => props.theme.terminal.messageColor};
     white-space: pre-wrap;
     word-break: break-word;
     flex: 1;
@@ -398,235 +490,22 @@ const StyledWrapper = styled.div`
   }
 
   .terminal-content::-webkit-scrollbar-track {
-    background: ${(props) => props.theme.terminal?.scrollbarTrack || props.theme.bg || '#2d2d30'};
+    background: ${(props) => props.theme.terminal.scrollbarTrack};
   }
 
   .terminal-content::-webkit-scrollbar-thumb {
-    background: ${(props) => props.theme.terminal?.scrollbarThumb || '#5a5a5a'};
+    background: ${(props) => props.theme.terminal.scrollbarThumb};
     border-radius: 4px;
   }
 
   .terminal-content::-webkit-scrollbar-thumb:hover {
-    background: ${(props) => props.theme.terminal?.scrollbarThumbHover || '#6a6a6a'};
+    background: ${(props) => props.theme.terminal.scrollbarThumbHover};
   }
-
-  /* Light theme styles */
-  ${(props) => props.theme.name === 'light' || props.theme.mode === 'light' ? `
-    background: #f8f9fa;
-    border-top-color: #dee2e6;
-    
-    .terminal-header {
-      background: #f8f9fa;
-      border-bottom-color: #dee2e6;
-    }
-    
-    .terminal-title {
-      color: #212529;
-      
-      .log-count {
-        color: #6c757d;
-      }
-    }
-    
-    .control-button {
-      color: #495057;
-      
-      &:hover {
-        background: #e9ecef;
-        color: #212529;
-      }
-    }
-    
-    .filter-dropdown-trigger {
-      color: #495057;
-      border-color: #dee2e6;
-      
-      &:hover {
-        background: #e9ecef;
-        color: #212529;
-        border-color: #adb5bd;
-      }
-    }
-    
-    .filter-dropdown-menu {
-      background: #ffffff;
-      border-color: #dee2e6;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    }
-    
-    .filter-dropdown-header {
-      background: #f8f9fa;
-      border-bottom-color: #dee2e6;
-      color: #212529;
-    }
-    
-    .filter-toggle-all {
-      color: #0d6efd;
-      
-      &:hover {
-        background: #e9ecef;
-        color: #0b5ed7;
-      }
-    }
-    
-    .filter-option {
-      &:hover {
-        background: #f8f9fa;
-      }
-    }
-    
-    .filter-option-label {
-      color: #212529;
-    }
-    
-    .filter-option-count {
-      color: #6c757d;
-    }
-    
-    .terminal-content {
-      background: #ffffff;
-    }
-    
-    .log-entry {
-      &:hover {
-        background: rgba(0, 0, 0, 0.03);
-      }
-    }
-    
-    .log-timestamp {
-      color: #6c757d;
-    }
-    
-    .log-message {
-      color: #212529;
-    }
-    
-    .terminal-empty {
-      color: #6c757d;
-    }
-    
-    .terminal-resize-handle {
-      &:hover, &:active {
-        background: #0d6efd;
-      }
-    }
-    
-    .terminal-content::-webkit-scrollbar-track {
-      background: #f8f9fa;
-    }
-    
-    .terminal-content::-webkit-scrollbar-thumb {
-      background: #ced4da;
-    }
-    
-    .terminal-content::-webkit-scrollbar-thumb:hover {
-      background: #adb5bd;
-    }
-  ` : ''}
-
-  /* Dark theme styles */
-  ${(props) => props.theme.name === 'dark' || props.theme.mode === 'dark' ? `
-    background: #1e1e1e;
-    border-top-color: #3c3c3c;
-    
-    .terminal-header {
-      background: #2d2d30;
-      border-bottom-color: #3c3c3c;
-    }
-    
-    .terminal-title {
-      color: #cccccc;
-      
-      .log-count {
-        color: #858585;
-      }
-    }
-    
-    .control-button {
-      color: #cccccc;
-      
-      &:hover {
-        background: rgba(255, 255, 255, 0.1);
-        color: #ffffff;
-      }
-    }
-    
-    .filter-dropdown-trigger {
-      color: #cccccc;
-      border-color: #3c3c3c;
-      
-      &:hover {
-        background: rgba(255, 255, 255, 0.1);
-        color: #ffffff;
-        border-color: rgba(255, 255, 255, 0.2);
-      }
-    }
-    
-    .filter-dropdown-menu {
-      background: #2d2d30;
-      border-color: #3c3c3c;
-    }
-    
-    .filter-dropdown-header {
-      background: #3c3c3c;
-      border-bottom-color: #3c3c3c;
-      color: #cccccc;
-    }
-    
-    .filter-toggle-all {
-      color: #0078d4;
-      
-      &:hover {
-        background: rgba(255, 255, 255, 0.1);
-        color: #4fc3f7;
-      }
-    }
-    
-    .filter-option {
-      &:hover {
-        background: rgba(255, 255, 255, 0.05);
-      }
-    }
-    
-    .filter-option-label {
-      color: #cccccc;
-    }
-    
-    .filter-option-count {
-      color: #858585;
-    }
-    
-    .terminal-content {
-      background: #1e1e1e;
-    }
-    
-    .log-entry {
-      &:hover {
-        background: rgba(255, 255, 255, 0.05);
-      }
-    }
-    
-    .log-timestamp {
-      color: #858585;
-    }
-    
-    .log-message {
-      color: #cccccc;
-    }
-    
-    .terminal-empty {
-      color: #858585;
-    }
-    
-    .terminal-resize-handle {
-      &:hover, &:active {
-        background: #0078d4;
-      }
-    }
-  ` : ''}
 
   /* Responsive design */
   @media (max-width: 768px) {
+    bottom: 20px; /* Account for mobile status bar height */
+    
     .terminal-header {
       padding: 6px 12px;
     }

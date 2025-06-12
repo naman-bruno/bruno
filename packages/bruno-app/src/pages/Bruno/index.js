@@ -51,6 +51,7 @@ export default function Main() {
   const activeTabUid = useSelector((state) => state.tabs.activeTabUid);
   const isDragging = useSelector((state) => state.app.isDragging);
   const showHomePage = useSelector((state) => state.app.showHomePage);
+  const isTerminalOpen = useSelector((state) => state.logs.isTerminalOpen);
 
   // Todo: write a better logging flow that can be used to log by turning on debug flag
   // Enable for debugging.
@@ -77,8 +78,8 @@ export default function Main() {
           </section>
         </StyledWrapper>
       </div>
-      <Terminal />
       <StatusBar />
+      {isTerminalOpen && <Terminal />}
     </div>
   );
 }

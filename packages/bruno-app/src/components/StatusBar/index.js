@@ -124,7 +124,7 @@ const StatusBar = () => {
         <div className="status-bar-section">
           <div className="status-bar-group">
             <button
-              className={`status-bar-button ${errorCount > 0 ? 'has-errors' : ''}`}
+              className={`status-bar-button terminal-button ${errorCount > 0 ? 'has-errors' : ''}`}
               data-trigger="terminal"
               onClick={handleTerminalClick}
               tabIndex={0}
@@ -133,11 +133,9 @@ const StatusBar = () => {
               <ToolHint text={`Terminal${errorCount > 0 ? ` (${errorCount} errors)` : ''}`} toolhintId="Terminal" place="top" offset={10}>
                 <div className="terminal-button-content">
                   <IconTerminal size={16} strokeWidth={1.5} aria-hidden="true" />
+                  <span className="terminal-label">Terminal</span>
                   {errorCount > 0 && (
-                    <div className="error-indicator">
-                      <IconAlertCircle size={12} strokeWidth={2} />
-                      <span className="error-count">{errorCount}</span>
-                    </div>
+                    <span className="error-count-inline">{errorCount}</span>
                   )}
                 </div>
               </ToolHint>

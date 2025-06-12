@@ -9,9 +9,18 @@ import {
   IconBug,
   IconCode,
   IconChevronDown,
-  IconTerminal2
+  IconTerminal2,
+  IconNetwork
 } from '@tabler/icons';
-import { closeTerminal, clearLogs, updateFilter, toggleAllFilters } from 'providers/ReduxStore/slices/logs';
+import { 
+  closeTerminal, 
+  clearLogs, 
+  updateFilter, 
+  toggleAllFilters,
+  setActiveTab 
+} from 'providers/ReduxStore/slices/logs';
+import NetworkTab from './NetworkTab';
+import RequestDetailsPanel from './RequestDetailsPanel';
 import StyledWrapper from './StyledWrapper';
 
 const LogIcon = ({ type }) => {
@@ -102,9 +111,9 @@ const FilterDropdown = ({ filters, logCounts, onFilterToggle, onToggleAll }) => 
     if (isOpen && dropdownRef.current) {
       const rect = dropdownRef.current.getBoundingClientRect();
       const screenWidth = window.innerWidth;
-      const dropdownWidth = 200; // Approximate dropdown width
+      const dropdownWidth = 220; // Approximate dropdown width with padding
       
-      // If dropdown would go off-screen, position it to the right
+      // If dropdown would go off-screen on the right, position it to the right
       if (rect.left + dropdownWidth > screenWidth - 20) {
         setDropdownPosition('right');
       } else {
@@ -169,24 +178,87 @@ const FilterDropdown = ({ filters, logCounts, onFilterToggle, onToggleAll }) => 
   );
 };
 
+const ConsoleTab = ({ logs, filters, logCounts, onFilterToggle, onToggleAll, onClearLogs }) => {
+  const logsEndRef = useRef(null);
+  
+  // Auto-scroll to bottom when new logs arrive
+  useEffect(() => {
+    if (logsEndRef.current) {
+      logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [logs]);
+
+  // Filter logs based on active filters
+  const filteredLogs = logs.filter(log => filters[log.type]);
+
+  return (
+    <div className="tab-content">
+      <div className="tab-header">
+        <div className="tab-title">
+          <IconTerminal2 size={16} strokeWidth={1.5} />
+          <span>Console</span>
+          <span className="log-count">({filteredLogs.length} of {logs.length})</span>
+        </div>
+        
+        <div className="tab-controls">
+          <div className="filter-controls">
+            <FilterDropdown
+              filters={filters}
+              logCounts={logCounts}
+              onFilterToggle={onFilterToggle}
+              onToggleAll={onToggleAll}
+            />
+          </div>
+
+          <div className="action-controls">
+            <button 
+              className="control-button"
+              onClick={onClearLogs}
+              title="Clear all logs"
+            >
+              <IconTrash size={16} strokeWidth={1.5} />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="tab-content-area">
+        {filteredLogs.length === 0 ? (
+          <div className="terminal-empty">
+            <IconTerminal2 size={48} strokeWidth={1} />
+            <p>No logs to display</p>
+            <span>Logs will appear here as your application runs</span>
+          </div>
+        ) : (
+          <div className="logs-container">
+            {filteredLogs.map((log) => (
+              <div key={log.id} className={`log-entry ${log.type}`}>
+                <div className="log-meta">
+                  <LogTimestamp timestamp={log.timestamp} />
+                  <LogLevel type={log.type} />
+                  <LogIcon type={log.type} />
+                </div>
+                <LogMessage message={log.message} args={log.args} />
+              </div>
+            ))}
+            <div ref={logsEndRef} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const MIN_TERMINAL_HEIGHT = 200;
 const MAX_TERMINAL_HEIGHT = window.innerHeight * 0.8;
 const DEFAULT_TERMINAL_HEIGHT = 300;
 
 const Terminal = () => {
   const dispatch = useDispatch();
-  const { logs, isTerminalOpen, filters } = useSelector(state => state.logs);
-  const logsEndRef = useRef(null);
+  const { logs, filters, activeTab, selectedRequest } = useSelector(state => state.logs);
   const terminalRef = useRef(null);
   const [height, setHeight] = useState(DEFAULT_TERMINAL_HEIGHT);
   const [isResizing, setIsResizing] = useState(false);
-
-  // Auto-scroll to bottom when new logs arrive (since new logs are now at the bottom)
-  useEffect(() => {
-    if (logsEndRef.current && !isResizing) {
-      logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [logs, isResizing]);
 
   // Resize functionality
   const handleMouseDown = useCallback((e) => {
@@ -230,9 +302,6 @@ const Terminal = () => {
     };
   }, [isResizing, handleMouseMove, handleMouseUp]);
 
-  // Filter logs based on active filters
-  const filteredLogs = logs.filter(log => filters[log.type]);
-
   // Count logs by type
   const logCounts = logs.reduce((counts, log) => {
     counts[log.type] = (counts[log.type] || 0) + 1;
@@ -255,7 +324,38 @@ const Terminal = () => {
     dispatch(toggleAllFilters(enabled));
   };
 
-  if (!isTerminalOpen) return null;
+  const handleTabChange = (tab) => {
+    dispatch(setActiveTab(tab));
+  };
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'console':
+        return (
+          <ConsoleTab
+            logs={logs}
+            filters={filters}
+            logCounts={logCounts}
+            onFilterToggle={handleFilterToggle}
+            onToggleAll={handleToggleAllFilters}
+            onClearLogs={handleClearLogs}
+          />
+        );
+      case 'network':
+        return <NetworkTab />;
+      default:
+        return (
+          <ConsoleTab
+            logs={logs}
+            filters={filters}
+            logCounts={logCounts}
+            onFilterToggle={handleFilterToggle}
+            onToggleAll={handleToggleAllFilters}
+            onClearLogs={handleClearLogs}
+          />
+        );
+    }
+  };
 
   return (
     <StyledWrapper style={{ height }} ref={terminalRef}>
@@ -265,68 +365,48 @@ const Terminal = () => {
         onMouseDown={handleMouseDown}
       />
       
-      {/* Header */}
+      {/* Main Terminal Header with Tabs */}
       <div className="terminal-header">
-        <div className="terminal-title">
-          <IconTerminal2 size={16} strokeWidth={1.5} />
-          <span>Console</span>
-          <span className="log-count">({filteredLogs.length} of {logs.length})</span>
+        <div className="terminal-tabs">
+          <button 
+            className={`terminal-tab ${activeTab === 'console' ? 'active' : ''}`}
+            onClick={() => handleTabChange('console')}
+          >
+            <IconTerminal2 size={16} strokeWidth={1.5} />
+            <span>Console</span>
+          </button>
+          
+          <button 
+            className={`terminal-tab ${activeTab === 'network' ? 'active' : ''}`}
+            onClick={() => handleTabChange('network')}
+          >
+            <IconNetwork size={16} strokeWidth={1.5} />
+            <span>Network</span>
+          </button>
         </div>
         
         <div className="terminal-controls">
-          {/* Filter Controls */}
-          <div className="filter-controls">
-            <FilterDropdown
-              filters={filters}
-              logCounts={logCounts}
-              onFilterToggle={handleFilterToggle}
-              onToggleAll={handleToggleAllFilters}
-            />
-          </div>
-
-          {/* Action Controls */}
-          <div className="action-controls">
-            <button 
-              className="control-button"
-              onClick={handleClearLogs}
-              title="Clear all logs"
-            >
-              <IconTrash size={16} strokeWidth={1.5} />
-            </button>
-            
-            <button 
-              className="control-button close-button"
-              onClick={handleCloseTerminal}
-              title="Close terminal"
-            >
-              <IconX size={16} strokeWidth={1.5} />
-            </button>
-          </div>
+          <button 
+            className="control-button close-button"
+            onClick={handleCloseTerminal}
+            title="Close terminal"
+          >
+            <IconX size={16} strokeWidth={1.5} />
+          </button>
         </div>
       </div>
 
-      {/* Content */}
+      {/* Content Area */}
       <div className="terminal-content">
-        {filteredLogs.length === 0 ? (
-          <div className="terminal-empty">
-            <IconTerminal2 size={48} strokeWidth={1} />
-            <p>No logs to display</p>
-            <span>Logs will appear here as your application runs</span>
+        {activeTab === 'network' && selectedRequest ? (
+          <div className="network-with-details">
+            <div className="network-main">
+              {renderTabContent()}
+            </div>
+            <RequestDetailsPanel />
           </div>
         ) : (
-          <div className="logs-container">
-            {filteredLogs.map((log) => (
-              <div key={log.id} className={`log-entry ${log.type}`}>
-                <div className="log-meta">
-                  <LogTimestamp timestamp={log.timestamp} />
-                  <LogLevel type={log.type} />
-                  <LogIcon type={log.type} />
-                </div>
-                <LogMessage message={log.message} args={log.args} />
-              </div>
-            ))}
-            <div ref={logsEndRef} />
-          </div>
+          renderTabContent()
         )}
       </div>
     </StyledWrapper>
