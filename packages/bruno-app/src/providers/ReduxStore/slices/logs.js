@@ -2,8 +2,9 @@ import { createSlice } from '@reduxjs/toolkit';
 
 const initialState = {
   logs: [],
+  debugErrors: [], // Array to store console.error calls
   isTerminalOpen: false,
-  activeTab: 'console', // 'console' or 'network'
+  activeTab: 'console', // 'console', 'network', or 'debug'
   filters: {
     info: true,
     warn: true,
@@ -21,7 +22,9 @@ const initialState = {
     OPTIONS: true
   },
   selectedRequest: null, // For network tab details panel
-  maxLogs: 1000 // Limit to prevent memory issues
+  selectedError: null, // For debug tab details panel
+  maxLogs: 1000, // Limit to prevent memory issues
+  maxDebugErrors: 500 // Limit for debug errors
 };
 
 export const logsSlice = createSlice({
@@ -46,8 +49,34 @@ export const logsSlice = createSlice({
         state.logs = state.logs.slice(-state.maxLogs);
       }
     },
+    // Add debug error (simplified)
+    addDebugError: (state, action) => {
+      const { message, stack, filename, lineno, colno, args, timestamp } = action.payload;
+      const newError = {
+        id: Date.now() + Math.random(),
+        message: message || 'Unknown error',
+        stack: stack,
+        filename: filename,
+        lineno: lineno,
+        colno: colno,
+        args: args || [],
+        timestamp: timestamp || new Date().toISOString()
+      };
+      
+      // Add to the end so recent errors appear at the bottom
+      state.debugErrors.push(newError);
+      
+      // Keep only the latest maxDebugErrors entries
+      if (state.debugErrors.length > state.maxDebugErrors) {
+        state.debugErrors = state.debugErrors.slice(-state.maxDebugErrors);
+      }
+    },
     clearLogs: (state) => {
       state.logs = [];
+    },
+    // Clear debug errors
+    clearDebugErrors: (state) => {
+      state.debugErrors = [];
     },
     toggleTerminal: (state) => {
       state.isTerminalOpen = !state.isTerminalOpen;
@@ -60,9 +89,12 @@ export const logsSlice = createSlice({
     },
     setActiveTab: (state, action) => {
       state.activeTab = action.payload;
-      // Clear selected request when switching tabs
+      // Clear selected request/error when switching tabs
       if (action.payload !== 'network') {
         state.selectedRequest = null;
+      }
+      if (action.payload !== 'debug') {
+        state.selectedError = null;
       }
     },
     updateFilter: (state, action) => {
@@ -90,13 +122,23 @@ export const logsSlice = createSlice({
     },
     clearSelectedRequest: (state) => {
       state.selectedRequest = null;
+    },
+    // Set selected error for debug tab
+    setSelectedError: (state, action) => {
+      state.selectedError = action.payload;
+    },
+    // Clear selected error
+    clearSelectedError: (state) => {
+      state.selectedError = null;
     }
   }
 });
 
 export const { 
   addLog, 
+  addDebugError,
   clearLogs, 
+  clearDebugErrors,
   toggleTerminal, 
   openTerminal, 
   closeTerminal, 
@@ -106,7 +148,9 @@ export const {
   updateNetworkFilter,
   toggleAllNetworkFilters,
   setSelectedRequest,
-  clearSelectedRequest
+  clearSelectedRequest,
+  setSelectedError,
+  clearSelectedError
 } = logsSlice.actions;
 
 export default logsSlice.reducer; 

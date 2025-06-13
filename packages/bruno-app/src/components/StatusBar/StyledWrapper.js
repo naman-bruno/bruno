@@ -14,7 +14,7 @@ const StyledWrapper = styled.div`
     user-select: none;
     backdrop-filter: blur(8px);
     position: relative;
-    z-index: 20;
+    z-index: 15;
   }
 
   .status-bar-section {
@@ -140,18 +140,8 @@ const StyledWrapper = styled.div`
     font-size: 10px;
     font-weight: 500;
     color: ${(props) => props.theme.sidebar.muted};
-    opacity: 0.6;
-    background: ${(props) => props.theme.sidebar.collection.item.bg};
-    border-radius: 10px;
-    border: 1px solid ${(props) => props.theme.sidebar.dragbar};
     font-family: ui-monospace, 'SF Mono', 'Monaco', 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
     letter-spacing: 0.5px;
-    transition: all 0.2s ease;
-
-    &:hover {
-      opacity: 0.8;
-      background: ${(props) => props.theme.sidebar.collection.item.hoverBg};
-    }
   }
 
   /* Responsive adjustments */

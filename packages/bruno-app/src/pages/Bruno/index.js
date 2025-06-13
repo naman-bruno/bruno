@@ -6,6 +6,7 @@ import RequestTabPanel from 'components/RequestTabPanel';
 import Sidebar from 'components/Sidebar';
 import StatusBar from 'components/StatusBar';
 import Terminal from 'components/Terminal';
+import ErrorCapture from 'components/ErrorCapture';
 import { useSelector } from 'react-redux';
 import StyledWrapper from './StyledWrapper';
 import 'codemirror/theme/material.css';
@@ -62,24 +63,26 @@ export default function Main() {
   });
 
   return (
-    <div className="flex flex-col h-screen max-h-screen overflow-hidden">
-      <div className="flex-1 min-h-0">
-        <StyledWrapper className={className}>
-          <Sidebar />
-          <section className="flex flex-grow flex-col overflow-auto">
-            {showHomePage ? (
-              <Welcome />
-            ) : (
-              <>
-                <RequestTabs />
-                <RequestTabPanel key={activeTabUid} />
-              </>
-            )}
-          </section>
-        </StyledWrapper>
+    <ErrorCapture>
+      <div className="flex flex-col h-screen max-h-screen overflow-hidden">
+        <div className="flex-1 min-h-0">
+          <StyledWrapper className={className}>
+            <Sidebar />
+            <section className="flex flex-grow flex-col overflow-auto">
+              {showHomePage ? (
+                <Welcome />
+              ) : (
+                <>
+                  <RequestTabs />
+                  <RequestTabPanel key={activeTabUid} />
+                </>
+              )}
+            </section>
+          </StyledWrapper>
+        </div>
+        <StatusBar />
+        {isTerminalOpen && <Terminal />}
       </div>
-      <StatusBar />
-      {isTerminalOpen && <Terminal />}
-    </div>
+    </ErrorCapture>
   );
 }

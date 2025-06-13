@@ -166,6 +166,21 @@ const StyledWrapper = styled.div`
     min-width: 0; /* Allow flex child to shrink */
   }
 
+  /* Debug with Details Layout */
+  .debug-with-details {
+    display: flex;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .debug-main {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-width: 0; /* Allow flex child to shrink */
+  }
+
   /* Filter Controls */
   .filter-controls {
     display: flex;

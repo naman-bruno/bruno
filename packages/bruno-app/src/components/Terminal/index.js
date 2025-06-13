@@ -21,6 +21,8 @@ import {
 } from 'providers/ReduxStore/slices/logs';
 import NetworkTab from './NetworkTab';
 import RequestDetailsPanel from './RequestDetailsPanel';
+import DebugTab from './DebugTab';
+import ErrorDetailsPanel from './ErrorDetailsPanel';
 import StyledWrapper from './StyledWrapper';
 
 const LogIcon = ({ type }) => {
@@ -255,7 +257,7 @@ const DEFAULT_TERMINAL_HEIGHT = 300;
 
 const Terminal = () => {
   const dispatch = useDispatch();
-  const { logs, filters, activeTab, selectedRequest } = useSelector(state => state.logs);
+  const { logs, filters, activeTab, selectedRequest, selectedError } = useSelector(state => state.logs);
   const terminalRef = useRef(null);
   const [height, setHeight] = useState(DEFAULT_TERMINAL_HEIGHT);
   const [isResizing, setIsResizing] = useState(false);
@@ -343,6 +345,8 @@ const Terminal = () => {
         );
       case 'network':
         return <NetworkTab />;
+      case 'debug':
+        return <DebugTab />;
       default:
         return (
           <ConsoleTab
@@ -383,6 +387,14 @@ const Terminal = () => {
             <IconNetwork size={16} strokeWidth={1.5} />
             <span>Network</span>
           </button>
+          
+          <button 
+            className={`terminal-tab ${activeTab === 'debug' ? 'active' : ''}`}
+            onClick={() => handleTabChange('debug')}
+          >
+            <IconBug size={16} strokeWidth={1.5} />
+            <span>Debug</span>
+          </button>
         </div>
         
         <div className="terminal-controls">
@@ -404,6 +416,13 @@ const Terminal = () => {
               {renderTabContent()}
             </div>
             <RequestDetailsPanel />
+          </div>
+        ) : activeTab === 'debug' && selectedError ? (
+          <div className="debug-with-details">
+            <div className="debug-main">
+              {renderTabContent()}
+            </div>
+            <ErrorDetailsPanel />
           </div>
         ) : (
           renderTabContent()
