@@ -1,6 +1,6 @@
 {
-  "name": "@usebruno/cli",
-  "version": "1.16.0",
+  "name": "bruno-cli-diagnose",
+  "version": "1.0.2",
   "license": "MIT",
   "main": "src/index.js",
   "bin": {
@@ -13,6 +13,7 @@
     "type": "git",
     "url": "git+https://github.com/usebruno/bruno.git"
   },
+  "description": "Bruno CLI with network diagnosis capabilities - API testing, automation, and comprehensive network diagnostics",
   "keywords": [
     "API",
     "testing",
@@ -33,7 +34,10 @@
     "nodejs",
     "automation-tool",
     "postman-alternative",
-    "api-scripting"
+    "api-scripting",
+    "network-diagnosis",
+    "debugging",
+    "diagnostics"
   ],
   "scripts": {
     "test": "node --experimental-vm-modules $(npx which jest)"
@@ -47,12 +51,12 @@
   ],
   "dependencies": {
     "@aws-sdk/credential-providers": "3.750.0",
-    "@usebruno/common": "0.1.0",
-    "@usebruno/js": "0.12.0",
-    "@usebruno/lang": "0.12.0",
-    "@usebruno/vm2": "^3.9.13",
-    "@usebruno/requests": "^0.1.0",
-    "@usebruno/converters": "^0.1.0",
+    "@usebruno/common": "0.7.1",
+    "@usebruno/js": "0.33.0",
+    "@usebruno/lang": "0.24.0",
+    "@usebruno/vm2": "3.9.19",
+    "@usebruno/requests": "0.4.0",
+    "@usebruno/converters": "0.6.0",
     "aws4-axios": "^3.3.0",
     "axios": "^1.8.3",
     "axios-ntlm": "^1.4.2",
