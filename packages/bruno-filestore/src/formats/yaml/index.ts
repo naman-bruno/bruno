@@ -92,9 +92,18 @@ export const yamlRequestToJson = (data: string | any, parsed: boolean = false): 
     transformedJson.request.body = {
       mode: _.get(bodySection, 'type', 'none')
     } as any;
+    
+    const bodyMode = transformedJson.request.body.mode;
+    
     if (_.get(httpSection, 'body.data')) {
-      transformedJson.request.body.raw = _.get(httpSection, 'body.data');
+      const bodyData = _.get(httpSection, 'body.data');
+      if (bodyMode === 'json') {
+        transformedJson.request.body.json = bodyData;
+      } else {
+        transformedJson.request.body.raw = bodyData;
+      }
     }
+    
     if (_.get(httpSection, 'body.query')) {
       transformedJson.request.body.graphql = {
         query: _.get(httpSection, 'body.query'),
@@ -212,7 +221,12 @@ export const jsonRequestToYaml = (json: any): string => {
       };
 
       if (bodyMode === 'json' || bodyMode === 'raw') {
-        const rawData = _.get(json, 'request.body.raw');
+        let rawData;
+        if (bodyMode === 'json') {
+          rawData = _.get(json, 'request.body.json');
+        } else {
+          rawData = _.get(json, 'request.body.raw');
+        }
         if (rawData) {
           yamlObj[sectionKey].body.data = rawData;
         }
@@ -375,7 +389,13 @@ export const yamlEnvironmentToJson = (yaml: string): any => {
 
     // the app env format requires each variable to have a type
     if (json && json.variables && json.variables.length) {
-      _.each(json.variables, (v: any) => (v.type = 'text'));
+      _.each(json.variables, (v: any) => {
+        v.type = 'text';
+        // Ensure secret flag is properly set (default to false if not present)
+        if (v.secret === undefined) {
+          v.secret = false;
+        }
+      });
     }
 
     return json;
@@ -386,7 +406,34 @@ export const yamlEnvironmentToJson = (yaml: string): any => {
 
 export const jsonEnvironmentToYaml = (json: any): string => {
   try {
-    return YAML.stringify(json);
+    // Create a copy of the environment object to avoid modifying the original
+    const envCopy = _.cloneDeep(json);
+    
+    // Filter out secret variable values, keeping only name and enabled status for secrets
+    if (envCopy.variables && envCopy.variables.length) {
+      const regularVars: any[] = [];
+      const secretVars: any[] = [];
+      
+      envCopy.variables.forEach((variable: any) => {
+        if (variable.secret) {
+          // For secret variables, only keep name, enabled status, and secret flag
+          secretVars.push({
+            name: variable.name,
+            enabled: variable.enabled,
+            secret: true,
+            ...(variable.description && { description: variable.description })
+          });
+        } else {
+          // For regular variables, keep all properties
+          regularVars.push(variable);
+        }
+      });
+      
+      // Combine regular and secret variables
+      envCopy.variables = [...regularVars, ...secretVars];
+    }
+    
+    return YAML.stringify(envCopy);
   } catch (error) {
     throw error;
   }

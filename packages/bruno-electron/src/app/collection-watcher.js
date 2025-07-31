@@ -133,8 +133,14 @@ const changeEnvironmentFile = async (win, pathname, collectionUid, collectionPat
     };
 
     const bruContent = fs.readFileSync(pathname, 'utf8');
-    file.data = await parseEnvironment(bruContent);
-    file.data.name = basename.substring(0, basename.length - 4);
+    
+    // Detect format from file extension
+    const filetype = pathname.toLowerCase().endsWith('.yml') || pathname.toLowerCase().endsWith('.yaml') ? 'yaml' : 'bru';
+    file.data = await parseEnvironment(bruContent, { format: filetype });
+    
+    // Extract name by removing the extension
+    const ext = path.extname(basename);
+    file.data.name = basename.substring(0, basename.length - ext.length);
     file.data.uid = getRequestUid(pathname);
     _.each(_.get(file, 'data.variables', []), (variable) => (variable.uid = uuid()));
 
