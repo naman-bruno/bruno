@@ -281,6 +281,67 @@ const parseBruFileMeta = (data) => {
   }
 }
 
+// Parse YAML file meta information
+const parseYamlFileMeta = (data) => {
+  try {
+    const yaml = require('js-yaml');
+    const parsed = yaml.load(data);
+    
+    if (!parsed || !parsed.meta) {
+      console.log('No "meta" section found in YAML file.');
+      return null;
+    }
+
+    const metaJson = parsed.meta;
+
+    // Transform to the format expected by bruno-app
+    let requestType = metaJson.type;
+    if (requestType === 'http') {
+      requestType = 'http-request';
+    } else if (requestType === 'graphql') {
+      requestType = 'graphql-request';
+    } else {
+      requestType = 'http-request';
+    }
+
+    const sequence = metaJson.seq;
+    const transformedJson = {
+      type: requestType,
+      name: metaJson.name,
+      seq: !isNaN(sequence) ? Number(sequence) : 1,
+      settings: {},
+      tags: metaJson.tags || [],
+      request: {
+        method: '',
+        url: '',
+        params: [],
+        headers: [],
+        auth: { mode: 'none' },
+        body: { mode: 'none' },
+        script: {},
+        vars: {},
+        assertions: [],
+        tests: '',
+        docs: ''
+      }
+    };
+
+    return transformedJson;
+  } catch (err) {
+    console.error('Error parsing YAML file meta:', err);
+    return null;
+  }
+};
+
+// Format-aware meta parsing function
+const parseFileMeta = (data, format = 'bru') => {
+  if (format === 'yaml') {
+    return parseYamlFileMeta(data);
+  } else {
+    return parseBruFileMeta(data);
+  }
+};
+
 const hydrateRequestWithUuid = (request, pathname) => {
   request.uid = getRequestUid(pathname);
 
@@ -558,6 +619,7 @@ module.exports = {
   findParentItemInCollection,
   findParentItemInCollectionByPathname,
   parseBruFileMeta,
+  parseFileMeta,
   hydrateRequestWithUuid,
   transformRequestToSaveToFilesystem,
   sortCollection,
