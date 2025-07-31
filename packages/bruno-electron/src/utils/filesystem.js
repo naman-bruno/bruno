@@ -166,6 +166,37 @@ const searchForBruFiles = (dir) => {
   return searchForFiles(dir, '.bru');
 };
 
+// Search for request files based on filetype (bru or yaml)
+const searchForRequestFiles = (dir, filetype = 'bru') => {
+  if (filetype === 'yaml') {
+    // Search for both .yml and .yaml files
+    const ymlFiles = searchForFiles(dir, '.yml');
+    const yamlFiles = searchForFiles(dir, '.yaml');
+    return [...ymlFiles, ...yamlFiles];
+  } else {
+    return searchForFiles(dir, '.bru');
+  }
+};
+
+// Search for request files based on collection filetype by reading bruno.json
+const searchForCollectionRequestFiles = (dir) => {
+  try {
+    const brunoJsonPath = path.join(dir, 'bruno.json');
+    let collectionFiletype = 'bru'; // default
+    
+    if (fs.existsSync(brunoJsonPath)) {
+      const brunoJsonContent = fs.readFileSync(brunoJsonPath, 'utf8');
+      const brunoConfig = JSON.parse(brunoJsonContent);
+      collectionFiletype = brunoConfig.filetype || 'bru';
+    }
+    
+    return searchForRequestFiles(dir, collectionFiletype);
+  } catch (error) {
+    console.warn('Error reading collection filetype, defaulting to bru:', error);
+    return searchForRequestFiles(dir, 'bru');
+  }
+};
+
 const sanitizeName = (name) => {
   const invalidCharacters = /[<>:"/\\|?*\x00-\x1F]/g;
   name = name
@@ -368,6 +399,8 @@ module.exports = {
   chooseFileToSave,
   searchForFiles,
   searchForBruFiles,
+  searchForRequestFiles,
+  searchForCollectionRequestFiles,
   sanitizeName,
   isWindowsOS,
   safeToRename,

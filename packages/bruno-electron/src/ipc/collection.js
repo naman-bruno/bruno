@@ -23,22 +23,38 @@ const { cookiesStore } = require('../store/cookies');
 const { parseLargeRequestWithRedaction } = require('../utils/parse');
 
 const {
+  safeParseJson,
+  safeStringifyJSON,
+  getSubDirectories,
+  isWindowsOS,
+  readDir,
+  createDirectory,
+  writeFile,
+  sanitizeName,
   hasBruExtension,
   hasRequestExtension,
-  createDirectory,
-  sanitizeName,
+  searchForBruFiles,
+  searchForRequestFiles,
+  searchForCollectionRequestFiles,
+  normalizeAndResolvePath,
+  generateUidBasedOnHash,
+  isWSLPath,
   validateName,
-  browseDirectory,
-  writeFile,
   browseFiles,
   chooseFileToSave,
-  getCollectionStats,
+  exists,
   isFile,
-  safeWriteFileSync,
-  searchForBruFiles
+  isDirectory,
+  getCollectionStats,
+  rename,
+  deleteFile,
+  lstat,
+  move,
+  deleteDirectory,
+  browseDirectory
 } = require('../utils/filesystem');
 const { openCollectionDialog } = require('../app/collections');
-const { generateUidBasedOnHash, stringifyJson, safeParseJSON, safeStringifyJSON } = require('../utils/common');
+const { stringifyJson, safeParseJSON } = require('../utils/common');
 const { moveRequestUid, deleteRequestUid } = require('../cache/requestUids');
 const { deleteCookiesForDomain, getDomainsWithCookies, addCookieForDomain, modifyCookieForDomain, parseCookieString, createCookieString, deleteCookie } = require('../utils/cookies');
 const EnvironmentSecretsStore = require('../store/env-secrets');
@@ -203,8 +219,8 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
       // write the bruno.json to new dir
       await writeFile(path.join(dirPath, 'bruno.json'), cont);
 
-      // Now copy all the files with extension name .bru along with the dir
-      const files = searchForBruFiles(previousPath);
+      // Now copy all the files matching the collection's filetype along with the dir
+      const files = searchForCollectionRequestFiles(previousPath);
 
       for (const sourceFilePath of files) {
         const relativePath = path.relative(previousPath, sourceFilePath);
@@ -533,7 +549,29 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
         const folderBruFileContent = await stringifyFolder(folderBruFileJsonContent);
         await writeFile(folderBruFilePath, folderBruFileContent);
         
-        const bruFilesAtSource = await searchForBruFiles(oldPath);
+        // Find the collection root to determine filetype
+        let collectionPath = oldPath;
+        while (collectionPath !== path.dirname(collectionPath)) {
+          if (fs.existsSync(path.join(collectionPath, 'bruno.json'))) {
+            break;
+          }
+          collectionPath = path.dirname(collectionPath);
+        }
+        
+        // Get collection filetype and search for files in oldPath only
+        let collectionFiletype = 'bru';
+        try {
+          const brunoJsonPath = path.join(collectionPath, 'bruno.json');
+          if (fs.existsSync(brunoJsonPath)) {
+            const brunoJsonContent = fs.readFileSync(brunoJsonPath, 'utf8');
+            const brunoConfig = JSON.parse(brunoJsonContent);
+            collectionFiletype = brunoConfig.filetype || 'bru';
+          }
+        } catch (error) {
+          console.warn('Error reading collection filetype, defaulting to bru:', error);
+        }
+        
+        const bruFilesAtSource = await searchForRequestFiles(oldPath, collectionFiletype);
 
         for (let bruFile of bruFilesAtSource) {
           const newBruFilePath = bruFile.replace(oldPath, newPath);
@@ -639,7 +677,29 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
         }
 
         // delete the request uid mappings
-        const bruFilesAtSource = await searchForBruFiles(pathname);
+        // Find the collection root to determine filetype
+        let collectionPath = pathname;
+        while (collectionPath !== path.dirname(collectionPath)) {
+          if (fs.existsSync(path.join(collectionPath, 'bruno.json'))) {
+            break;
+          }
+          collectionPath = path.dirname(collectionPath);
+        }
+        
+        // Get collection filetype and search for files in pathname only
+        let collectionFiletype = 'bru';
+        try {
+          const brunoJsonPath = path.join(collectionPath, 'bruno.json');
+          if (fs.existsSync(brunoJsonPath)) {
+            const brunoJsonContent = fs.readFileSync(brunoJsonPath, 'utf8');
+            const brunoConfig = JSON.parse(brunoJsonContent);
+            collectionFiletype = brunoConfig.filetype || 'bru';
+          }
+        } catch (error) {
+          console.warn('Error reading collection filetype, defaulting to bru:', error);
+        }
+        
+        const bruFilesAtSource = await searchForRequestFiles(pathname, collectionFiletype);
         for (let bruFile of bruFilesAtSource) {
           deleteRequestUid(bruFile);
         }
@@ -935,7 +995,29 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
         throw new Error(`folder: ${newFolderPath} already exists`);
       }
 
-      const bruFilesAtSource = await searchForBruFiles(folderPath);
+      // Find the collection root to determine filetype
+      let collectionPath = folderPath;
+      while (collectionPath !== path.dirname(collectionPath)) {
+        if (fs.existsSync(path.join(collectionPath, 'bruno.json'))) {
+          break;
+        }
+        collectionPath = path.dirname(collectionPath);
+      }
+      
+      // Get collection filetype and search for files in folderPath only
+      let collectionFiletype = 'bru';
+      try {
+        const brunoJsonPath = path.join(collectionPath, 'bruno.json');
+        if (fs.existsSync(brunoJsonPath)) {
+          const brunoJsonContent = fs.readFileSync(brunoJsonPath, 'utf8');
+          const brunoConfig = JSON.parse(brunoJsonContent);
+          collectionFiletype = brunoConfig.filetype || 'bru';
+        }
+      } catch (error) {
+        console.warn('Error reading collection filetype, defaulting to bru:', error);
+      }
+
+      const bruFilesAtSource = await searchForRequestFiles(folderPath, collectionFiletype);
 
       for (let bruFile of bruFilesAtSource) {
         const newBruFilePath = bruFile.replace(folderPath, newFolderPath);

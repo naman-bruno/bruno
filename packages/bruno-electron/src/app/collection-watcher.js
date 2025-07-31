@@ -19,7 +19,7 @@ const { setDotEnvVars } = require('../store/process-env');
 const { setBrunoConfig } = require('../store/bruno-config');
 const EnvironmentSecretsStore = require('../store/env-secrets');
 const UiStateSnapshot = require('../store/ui-state-snapshot');
-const { parseBruFileMeta, hydrateRequestWithUuid } = require('../utils/collection');
+const { parseFileMeta, hydrateRequestWithUuid, hydrateRequestWithUuid } = require('../utils/collection');
 const { parseLargeRequestWithRedaction } = require('../utils/parse');
 
 const MAX_FILE_SIZE = 2.5 * 1024 * 1024;
@@ -40,18 +40,63 @@ const isBrunoConfigFile = (pathname, collectionPath) => {
   return dirname === collectionPath && basename === 'bruno.json';
 };
 
+// Get collection filetype from bruno.json
+const getCollectionFiletype = (collectionPath) => {
+  try {
+    const brunoJsonPath = path.join(collectionPath, 'bruno.json');
+    if (fs.existsSync(brunoJsonPath)) {
+      const brunoJsonContent = fs.readFileSync(brunoJsonPath, 'utf8');
+      const brunoConfig = JSON.parse(brunoJsonContent);
+      return brunoConfig.filetype || 'bru';
+    }
+    return 'bru'; // default to bru if bruno.json doesn't exist
+  } catch (error) {
+    console.warn('Error reading collection filetype:', error);
+    return 'bru'; // default to bru on error
+  }
+};
+
+// Check if file extension matches the collection's filetype
+const isFileTypeCompatible = (filename, collectionFiletype) => {
+  const ext = path.extname(filename).toLowerCase();
+  if (collectionFiletype === 'yaml') {
+    return ext === '.yml' || ext === '.yaml';
+  } else {
+    return ext === '.bru';
+  }
+};
+
 const isBruEnvironmentConfig = (pathname, collectionPath) => {
   const dirname = path.dirname(pathname);
   const envDirectory = path.join(collectionPath, 'environments');
   const basename = path.basename(pathname);
-
-  return dirname === envDirectory && hasRequestExtension(basename);
+  
+  if (dirname !== envDirectory) {
+    return false;
+  }
+  
+  // Check if file extension is compatible with collection filetype
+  const collectionFiletype = getCollectionFiletype(collectionPath);
+  return hasRequestExtension(basename) && isFileTypeCompatible(basename, collectionFiletype);
 };
 
 const isCollectionRootBruFile = (pathname, collectionPath) => {
   const dirname = path.dirname(pathname);
   const basename = path.basename(pathname);
-  return dirname === collectionPath && (basename === 'collection.bru' || basename === 'collection.yml');
+  
+  if (dirname !== collectionPath) {
+    return false;
+  }
+  
+  // Check if it's a collection file with compatible extension
+  const collectionFiletype = getCollectionFiletype(collectionPath);
+  const isCollectionFile = basename === 'collection.bru' || basename === 'collection.yml';
+  
+  if (!isCollectionFile) {
+    return false;
+  }
+  
+  return isFileTypeCompatible(basename, collectionFiletype);
 };
 
 const envHasSecrets = (environment = {}) => {
@@ -60,9 +105,32 @@ const envHasSecrets = (environment = {}) => {
   return secrets && secrets.length > 0;
 };
 
-const isFolderRootFile = (pathname) => {
+const isFolderRootFile = (pathname, collectionPath) => {
   const basename = path.basename(pathname);
-  return basename === 'folder.bru' || basename === 'folder.yml';
+  const isFolderFile = basename === 'folder.bru' || basename === 'folder.yml';
+  
+  if (!isFolderFile) {
+    return false;
+  }
+  
+  // Get collection path by walking up the directory tree to find bruno.json
+  let currentPath = path.dirname(pathname);
+  let foundCollectionPath = null;
+  
+  while (currentPath !== path.dirname(currentPath)) {
+    if (fs.existsSync(path.join(currentPath, 'bruno.json'))) {
+      foundCollectionPath = currentPath;
+      break;
+    }
+    currentPath = path.dirname(currentPath);
+  }
+  
+  if (!foundCollectionPath) {
+    return false; // Not in a collection
+  }
+  
+  const collectionFiletype = getCollectionFiletype(foundCollectionPath);
+  return isFileTypeCompatible(basename, collectionFiletype);
 };
 
 const hydrateBruCollectionFileWithUuid = (collectionRoot) => {
@@ -247,7 +315,7 @@ const add = async (win, pathname, collectionUid, collectionPath, useWorkerThread
     }
   }
 
-  if (isFolderRootFile(pathname)) {
+  if (isFolderRootFile(pathname, collectionPath)) {
     const file = {
       meta: {
         collectionUid,
@@ -274,6 +342,14 @@ const add = async (win, pathname, collectionUid, collectionPath, useWorkerThread
   }
 
   if (hasRequestExtension(pathname)) {
+    // Check if file extension is compatible with collection filetype
+    const collectionFiletype = getCollectionFiletype(collectionPath);
+    const basename = path.basename(pathname);
+    
+    if (!isFileTypeCompatible(basename, collectionFiletype)) {
+      return; // Skip files that don't match the collection's filetype
+    }
+    
     watcher.addFileToProcessing(collectionUid, pathname);
 
     const file = {
@@ -316,7 +392,7 @@ const add = async (win, pathname, collectionUid, collectionPath, useWorkerThread
         type: 'http-request'
       };
 
-      const metaJson = parseBruFileMeta(bruContent);
+      const metaJson = parseFileMeta(bruContent, filetype);
       file.data = metaJson;
       file.partial = true;
       file.loading = false;
@@ -334,7 +410,7 @@ const add = async (win, pathname, collectionUid, collectionPath, useWorkerThread
 
         // This is to update the file info in the UI
         file.data = await parseRequestViaWorker(bruContent, { 
-          format: filetype === 'yaml' ? 'yaml' : 'auto',
+          format: filetype,
           filename: pathname 
         });
         file.partial = false;
@@ -471,7 +547,7 @@ const change = async (win, pathname, collectionUid, collectionPath) => {
     }
   }
 
-  if (isFolderRootFile(pathname)) {
+  if (isFolderRootFile(pathname, collectionPath)) {
     const file = {
       meta: {
         collectionUid,
@@ -498,6 +574,14 @@ const change = async (win, pathname, collectionUid, collectionPath) => {
   }
 
   if (hasRequestExtension(pathname)) {
+    // Check if file extension is compatible with collection filetype
+    const collectionFiletype = getCollectionFiletype(collectionPath);
+    const basename = path.basename(pathname);
+    
+    if (!isFileTypeCompatible(basename, collectionFiletype)) {
+      return; // Skip files that don't match the collection's filetype
+    }
+    
     try {
       const file = {
         meta: {
@@ -539,6 +623,14 @@ const unlink = (win, pathname, collectionUid, collectionPath) => {
   }
 
   if (hasRequestExtension(pathname)) {
+    // Check if file extension is compatible with collection filetype
+    const collectionFiletype = getCollectionFiletype(collectionPath);
+    const basename = path.basename(pathname);
+    
+    if (!isFileTypeCompatible(basename, collectionFiletype)) {
+      return; // Skip files that don't match the collection's filetype
+    }
+    
     const file = {
       meta: {
         collectionUid,
