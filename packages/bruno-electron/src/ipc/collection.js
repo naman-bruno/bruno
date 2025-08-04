@@ -35,7 +35,6 @@ const {
   searchForRequestFiles,
   searchForCollectionRequestFiles,
   normalizeAndResolvePath,
-  generateUidBasedOnHash,
   isWSLPath,
   validateName,
   browseFiles,
@@ -52,7 +51,7 @@ const {
   browseDirectory
 } = require('../utils/filesystem');
 const { openCollectionDialog } = require('../app/collections');
-const { stringifyJson, safeParseJSON } = require('../utils/common');
+const { stringifyJson, safeParseJSON, generateUidBasedOnHash } = require('../utils/common');
 const { moveRequestUid, deleteRequestUid } = require('../cache/requestUids');
 const { deleteCookiesForDomain, getDomainsWithCookies, addCookieForDomain, modifyCookieForDomain, parseCookieString, createCookieString, deleteCookie } = require('../utils/cookies');
 const EnvironmentSecretsStore = require('../store/env-secrets');
