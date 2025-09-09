@@ -26,6 +26,7 @@ const { openCollection } = require('./app/collections');
 const LastOpenedCollections = require('./store/last-opened-collections');
 const registerNetworkIpc = require('./ipc/network');
 const registerCollectionsIpc = require('./ipc/collection');
+const registerWorkspaceIpc = require('./ipc/workspace');
 const registerFilesystemIpc = require('./ipc/filesystem');
 const registerPreferencesIpc = require('./ipc/preferences');
 const collectionWatcher = require('./app/collection-watcher');
@@ -192,6 +193,7 @@ app.on('ready', async () => {
   registerNetworkIpc(mainWindow);
   registerGlobalEnvironmentsIpc(mainWindow);
   registerCollectionsIpc(mainWindow, collectionWatcher, lastOpenedCollections);
+  registerWorkspaceIpc(mainWindow);
   registerPreferencesIpc(mainWindow, collectionWatcher, lastOpenedCollections);
   registerNotificationsIpc(mainWindow, collectionWatcher);
   registerFilesystemIpc(mainWindow);

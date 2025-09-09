@@ -12,6 +12,7 @@ import Collection from './Collection';
 import CreateCollection from '../CreateCollection';
 import StyledWrapper from './StyledWrapper';
 import CreateOrOpenCollection from './CreateOrOpenCollection';
+import { filterCollectionsByWorkspace } from 'utils/workspaces';
 import { sortCollections } from 'providers/ReduxStore/slices/collections/actions';
 
 // todo: move this to a separate folder
@@ -63,9 +64,16 @@ const CollectionsBadge = () => {
 const Collections = () => {
   const [searchText, setSearchText] = useState('');
   const { collections } = useSelector((state) => state.collections);
+  const { workspaces, activeWorkspaceUid } = useSelector((state) => state.workspaces);
   const [createCollectionModalOpen, setCreateCollectionModalOpen] = useState(false);
 
-  if (!collections || !collections.length) {
+  // Filter collections based on active workspace
+  const activeWorkspace = workspaces.find(w => w.uid === activeWorkspaceUid);
+  const filteredCollections = activeWorkspaceUid && activeWorkspace
+    ? filterCollectionsByWorkspace(collections, activeWorkspace)
+    : collections; // Show all collections for default workspace
+
+  if (!filteredCollections || !filteredCollections.length) {
     return (
       <StyledWrapper>
         <CollectionsBadge />
@@ -114,8 +122,8 @@ const Collections = () => {
       </div>
 
       <div className="mt-4 flex flex-col overflow-hidden hover:overflow-y-auto absolute top-32 bottom-0 left-0 right-0">
-        {collections && collections.length
-          ? collections.map((c) => {
+        {filteredCollections && filteredCollections.length
+          ? filteredCollections.map((c) => {
               return (
                 <Collection searchText={searchText} collection={c} key={c.uid} />
               );

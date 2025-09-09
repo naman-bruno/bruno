@@ -65,6 +65,25 @@ const lightTheme = {
       }
     },
 
+    workspace: {
+      bg: '#E8E8E8',
+      border: '#D0D0D0',
+      item: {
+        icon: '#666',
+        text: '#666',
+        hoverBg: 'rgba(0, 0, 0, 0.05)',
+        activeBg: '#fff',
+        activeIcon: '#546de5',
+        activeText: '#546de5',
+        activeIndicator: '#546de5',
+        createBorder: '#ccc',
+        createBorderHover: '#546de5',
+        createBgHover: 'rgba(84, 109, 229, 0.05)',
+        createIcon: '#999',
+        createText: '#999'
+      }
+    },
+
     dropdownIcon: {
       color: 'rgb(110 110 110)'
     }

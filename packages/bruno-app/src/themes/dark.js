@@ -65,6 +65,25 @@ const darkTheme = {
       }
     },
 
+    workspace: {
+      bg: '#1e1e1e',
+      border: '#3c3c3c',
+      item: {
+        icon: '#999',
+        text: '#999',
+        hoverBg: 'rgba(255, 255, 255, 0.05)',
+        activeBg: '#37373D',
+        activeIcon: '#569cd6',
+        activeText: '#569cd6',
+        activeIndicator: '#569cd6',
+        createBorder: '#666',
+        createBorderHover: '#569cd6',
+        createBgHover: 'rgba(86, 156, 214, 0.1)',
+        createIcon: '#aaa',
+        createText: '#aaa'
+      }
+    },
+
     dropdownIcon: {
       color: '#ccc'
     }

@@ -1,9 +1,11 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import classnames from 'classnames';
 import Welcome from 'components/Welcome';
+import WorkspaceOverview from 'components/WorkspaceOverview';
 import RequestTabs from 'components/RequestTabs';
 import RequestTabPanel from 'components/RequestTabPanel';
 import Sidebar from 'components/Sidebar';
+import WorkspaceSidebar from 'components/WorkspaceSidebar';
 import StatusBar from 'components/StatusBar';
 // import ErrorCapture from 'components/ErrorCapture';
 import { useSelector } from 'react-redux';
@@ -50,6 +52,7 @@ export default function Main() {
   const isDragging = useSelector((state) => state.app.isDragging);
   const showHomePage = useSelector((state) => state.app.showHomePage);
   const isConsoleOpen = useSelector((state) => state.logs.isConsoleOpen);
+  const activeWorkspaceUid = useSelector((state) => state.workspaces.activeWorkspaceUid);
   const mainSectionRef = useRef(null);
 
   const className = classnames({
@@ -67,10 +70,15 @@ export default function Main() {
           }}
         >
           <StyledWrapper className={className} style={{ height: '100%', zIndex: 1 }}>
+            <WorkspaceSidebar />
             <Sidebar />
             <section className="flex flex-grow flex-col overflow-hidden">
               {showHomePage ? (
-                <Welcome />
+                activeWorkspaceUid ? (
+                  <WorkspaceOverview />
+                ) : (
+                  <Welcome />
+                )
               ) : (
                 <>
                   <RequestTabs />

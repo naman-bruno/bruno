@@ -20,6 +20,7 @@ import {
   scriptEnvironmentUpdateEvent
 } from 'providers/ReduxStore/slices/collections';
 import { collectionAddEnvFileEvent, openCollectionEvent, hydrateCollectionWithUiStateSnapshot, mergeAndPersistEnvironment } from 'providers/ReduxStore/slices/collections/actions';
+import { workspaceOpenedEvent, loadLastOpenedWorkspaces } from 'providers/ReduxStore/slices/workspaces/actions';
 import toast from 'react-hot-toast';
 import { useDispatch } from 'react-redux';
 import { isElectron } from 'utils/common/platform';
@@ -89,10 +90,17 @@ const useIpcEvents = () => {
 
     ipcRenderer.invoke('renderer:ready');
 
+    // Load last opened workspaces
+    dispatch(loadLastOpenedWorkspaces());
+
     const removeCollectionTreeUpdateListener = ipcRenderer.on('main:collection-tree-updated', _collectionTreeUpdated);
 
     const removeOpenCollectionListener = ipcRenderer.on('main:collection-opened', (pathname, uid, brunoConfig) => {
       dispatch(openCollectionEvent(uid, pathname, brunoConfig));
+    });
+
+    const removeOpenWorkspaceListener = ipcRenderer.on('main:workspace-opened', (workspacePath, workspaceUid, workspaceConfig) => {
+      dispatch(workspaceOpenedEvent(workspacePath, workspaceUid, workspaceConfig));
     });
 
     const removeCollectionAlreadyOpenedListener = ipcRenderer.on('main:collection-already-opened', (pathname) => {
@@ -190,6 +198,7 @@ const useIpcEvents = () => {
     return () => {
       removeCollectionTreeUpdateListener();
       removeOpenCollectionListener();
+      removeOpenWorkspaceListener();
       removeCollectionAlreadyOpenedListener();
       removeDisplayErrorListener();
       removeScriptEnvUpdateListener();

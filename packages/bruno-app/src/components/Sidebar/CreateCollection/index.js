@@ -4,6 +4,7 @@ import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import { browseDirectory } from 'providers/ReduxStore/slices/collections/actions';
 import { createCollection } from 'providers/ReduxStore/slices/collections/actions';
+import { createCollectionInWorkspace } from 'providers/ReduxStore/slices/workspaces/actions';
 import toast from 'react-hot-toast';
 import Modal from 'components/Modal';
 import { sanitizeName, validateName, validateNameError } from 'utils/common/regex';
@@ -15,7 +16,7 @@ import { multiLineMsg } from "utils/common";
 import { formatIpcError } from "utils/common/error";
 import { toggleSidebarCollapse } from 'providers/ReduxStore/slices/app';
 
-const CreateCollection = ({ onClose }) => {
+const CreateCollection = ({ onClose, workspaceUid, defaultLocation }) => {
   const inputRef = useRef();
   const dispatch = useDispatch();
   const [isEditing, toggleEditing] = useState(false);
@@ -25,7 +26,7 @@ const CreateCollection = ({ onClose }) => {
     initialValues: {
       collectionName: '',
       collectionFolderName: '',
-      collectionLocation: ''
+      collectionLocation: defaultLocation || ''
     },
     validationSchema: Yup.object({
       collectionName: Yup.string()
@@ -43,10 +44,16 @@ const CreateCollection = ({ onClose }) => {
       collectionLocation: Yup.string().min(1, 'location is required').required('location is required')
     }),
     onSubmit: (values) => {
-      dispatch(createCollection(values.collectionName, values.collectionFolderName, values.collectionLocation))
+      const createAction = workspaceUid 
+        ? createCollectionInWorkspace(values.collectionName, values.collectionFolderName, values.collectionLocation, workspaceUid)
+        : createCollection(values.collectionName, values.collectionFolderName, values.collectionLocation);
+        
+      dispatch(createAction)
         .then(() => {
           toast.success('Collection created!');
-          dispatch(toggleSidebarCollapse());
+          if (!workspaceUid) {
+            dispatch(toggleSidebarCollapse());
+          }
           onClose();
         })
         .catch((e) => toast.error(multiLineMsg('An error occurred while creating the collection', formatIpcError(e))));
