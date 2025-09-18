@@ -19,7 +19,7 @@ const { setDotEnvVars } = require('../store/process-env');
 const { setBrunoConfig } = require('../store/bruno-config');
 const EnvironmentSecretsStore = require('../store/env-secrets');
 const UiStateSnapshot = require('../store/ui-state-snapshot');
-const { parseFileMeta, hydrateRequestWithUuid, hydrateRequestWithUuid } = require('../utils/collection');
+const { parseFileMeta, hydrateRequestWithUuid } = require('../utils/collection');
 const { parseLargeRequestWithRedaction } = require('../utils/parse');
 
 const MAX_FILE_SIZE = 2.5 * 1024 * 1024;
