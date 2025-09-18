@@ -2,7 +2,7 @@ const _ = require('lodash');
 const fs = require('fs');
 const path = require('path');
 const chokidar = require('chokidar');
-const { hasBruExtension, isWSLPath, normalizeAndResolvePath, sizeInMB } = require('../utils/filesystem');
+const { hasBruExtension, hasRequestExtension, isWSLPath, normalizeAndResolvePath, sizeInMB } = require('../utils/filesystem');
 const {
   parseEnvironment,
   parseRequest,
@@ -45,13 +45,24 @@ const isBruEnvironmentConfig = (pathname, collectionPath) => {
   const envDirectory = path.join(collectionPath, 'environments');
   const basename = path.basename(pathname);
 
-  return dirname === envDirectory && hasBruExtension(basename);
+  return dirname === envDirectory && hasRequestExtension(basename);
 };
 
 const isCollectionRootBruFile = (pathname, collectionPath) => {
   const dirname = path.dirname(pathname);
   const basename = path.basename(pathname);
-  return dirname === collectionPath && basename === 'collection.bru';
+  return dirname === collectionPath && (basename === 'collection.bru' || basename === 'collection.yml');
+};
+
+const envHasSecrets = (environment = {}) => {
+  const secrets = _.filter(environment.variables, (v) => v.secret);
+
+  return secrets && secrets.length > 0;
+};
+
+const isFolderRootFile = (pathname) => {
+  const basename = path.basename(pathname);
+  return basename === 'folder.bru' || basename === 'folder.yml';
 };
 
 const hydrateBruCollectionFileWithUuid = (collectionRoot) => {
@@ -68,12 +79,6 @@ const hydrateBruCollectionFileWithUuid = (collectionRoot) => {
   return collectionRoot;
 };
 
-const envHasSecrets = (environment = {}) => {
-  const secrets = _.filter(environment.variables, (v) => v.secret);
-
-  return secrets && secrets.length > 0;
-};
-
 const addEnvironmentFile = async (win, pathname, collectionUid, collectionPath) => {
   try {
     const basename = path.basename(pathname);
@@ -87,8 +92,13 @@ const addEnvironmentFile = async (win, pathname, collectionUid, collectionPath) 
 
     let bruContent = fs.readFileSync(pathname, 'utf8');
 
-    file.data = await parseEnvironment(bruContent);
-    file.data.name = basename.substring(0, basename.length - 4);
+    // Detect format from file extension
+    const filetype = pathname.toLowerCase().endsWith('.yml') || pathname.toLowerCase().endsWith('.yaml') ? 'yaml' : 'bru';
+    file.data = await parseEnvironment(bruContent, { format: filetype });
+    
+    // Extract name by removing the extension
+    const ext = path.extname(basename);
+    file.data.name = basename.substring(0, basename.length - ext.length);
     file.data.uid = getRequestUid(pathname);
 
     _.each(_.get(file, 'data.variables', []), (variable) => (variable.uid = uuid()));
@@ -218,7 +228,9 @@ const add = async (win, pathname, collectionUid, collectionPath, useWorkerThread
     try {
       let bruContent = fs.readFileSync(pathname, 'utf8');
 
-      file.data = await parseCollection(bruContent);
+      // Detect format from file extension
+      const filetype = pathname.toLowerCase().endsWith('.yml') || pathname.toLowerCase().endsWith('.yaml') ? 'yaml' : 'bru';
+      file.data = await parseCollection(bruContent, { format: filetype });
 
       hydrateBruCollectionFileWithUuid(file.data);
       win.webContents.send('main:collection-tree-updated', 'addFile', file);
@@ -229,7 +241,7 @@ const add = async (win, pathname, collectionUid, collectionPath, useWorkerThread
     }
   }
 
-  if (path.basename(pathname) === 'folder.bru') {
+  if (isFolderRootFile(pathname)) {
     const file = {
       meta: {
         collectionUid,
@@ -242,7 +254,9 @@ const add = async (win, pathname, collectionUid, collectionPath, useWorkerThread
     try {
       let bruContent = fs.readFileSync(pathname, 'utf8');
 
-      file.data = await parseCollection(bruContent);
+      // Detect format from file extension
+      const filetype = pathname.toLowerCase().endsWith('.yml') || pathname.toLowerCase().endsWith('.yaml') ? 'yaml' : 'bru';
+      file.data = await parseCollection(bruContent, { format: filetype });
 
       hydrateBruCollectionFileWithUuid(file.data);
       win.webContents.send('main:collection-tree-updated', 'addFile', file);
@@ -253,7 +267,7 @@ const add = async (win, pathname, collectionUid, collectionPath, useWorkerThread
     }
   }
 
-  if (hasBruExtension(pathname)) {
+  if (hasRequestExtension(pathname)) {
     watcher.addFileToProcessing(collectionUid, pathname);
 
     const file = {
@@ -266,10 +280,14 @@ const add = async (win, pathname, collectionUid, collectionPath, useWorkerThread
 
     const fileStats = fs.statSync(pathname);
     let bruContent = fs.readFileSync(pathname, 'utf8');
+    
+    // Detect format from file extension
+    const filetype = pathname.toLowerCase().endsWith('.yml') || pathname.toLowerCase().endsWith('.yaml') ? 'yaml' : 'bru';
+    
     // If worker thread is not used, we can directly parse the file
     if (!useWorkerThread) {
       try {
-        file.data = await parseRequest(bruContent);
+        file.data = await parseRequest(bruContent, { format: filetype });
         file.partial = false;
         file.loading = false;
         file.size = sizeInMB(fileStats?.size);
@@ -309,7 +327,10 @@ const add = async (win, pathname, collectionUid, collectionPath, useWorkerThread
         win.webContents.send('main:collection-tree-updated', 'addFile', file);
 
         // This is to update the file info in the UI
-        file.data = await parseRequestViaWorker(bruContent);
+        file.data = await parseRequestViaWorker(bruContent, { 
+          format: filetype === 'yaml' ? 'yaml' : 'auto',
+          filename: pathname 
+        });
         file.partial = false;
         file.loading = false;
         hydrateRequestWithUuid(file.data, pathname);
@@ -343,19 +364,27 @@ const addDirectory = async (win, pathname, collectionUid, collectionPath) => {
 
   let name = path.basename(pathname);
   let seq;
+  
+  // Check for both folder.bru and folder.yml
   const folderBruFilePath = path.join(pathname, `folder.bru`);
+  const folderYmlFilePath = path.join(pathname, `folder.yml`);
 
-  try {
-    if (fs.existsSync(folderBruFilePath)) {
-      let folderBruFileContent = fs.readFileSync(folderBruFilePath, 'utf8');
-      let folderBruData = await parseFolder(folderBruFileContent);
-      name = folderBruData?.meta?.name || name;
-      seq = folderBruData?.meta?.seq;
-    }
+  let folderFilePath = null;
+  let folderFormat = 'bru';
+
+  if (fs.existsSync(folderBruFilePath)) {
+    folderFilePath = folderBruFilePath;
+    folderFormat = 'bru';
+  } else if (fs.existsSync(folderYmlFilePath)) {
+    folderFilePath = folderYmlFilePath;
+    folderFormat = 'yaml';
   }
-  catch(error) {
-    console.error('Error occured while parsing folder.bru file!');
-    console.error(error);
+
+  if (folderFilePath) {
+    let folderBruFileContent = fs.readFileSync(folderFilePath, 'utf8');
+    let folderBruData = await parseFolder(folderBruFileContent, { format: folderFormat });
+    name = folderBruData?.meta?.name || name;
+    seq = folderBruData?.meta?.seq;
   }
 
   const directory = {
@@ -424,7 +453,9 @@ const change = async (win, pathname, collectionUid, collectionPath) => {
     try {
       let bruContent = fs.readFileSync(pathname, 'utf8');
 
-      file.data = await parseCollection(bruContent);
+      // Detect format from file extension
+      const filetype = pathname.toLowerCase().endsWith('.yml') || pathname.toLowerCase().endsWith('.yaml') ? 'yaml' : 'bru';
+      file.data = await parseCollection(bruContent, { format: filetype });
       hydrateBruCollectionFileWithUuid(file.data);
       win.webContents.send('main:collection-tree-updated', 'change', file);
       return;
@@ -434,7 +465,7 @@ const change = async (win, pathname, collectionUid, collectionPath) => {
     }
   }
 
-  if (path.basename(pathname) === 'folder.bru') {
+  if (isFolderRootFile(pathname)) {
     const file = {
       meta: {
         collectionUid,
@@ -447,7 +478,9 @@ const change = async (win, pathname, collectionUid, collectionPath) => {
     try {
       let bruContent = fs.readFileSync(pathname, 'utf8');
 
-      file.data = await parseCollection(bruContent);
+      // Detect format from file extension
+      const filetype = pathname.toLowerCase().endsWith('.yml') || pathname.toLowerCase().endsWith('.yaml') ? 'yaml' : 'bru';
+      file.data = await parseCollection(bruContent, { format: filetype });
 
       hydrateBruCollectionFileWithUuid(file.data);
       win.webContents.send('main:collection-tree-updated', 'change', file);
@@ -458,7 +491,7 @@ const change = async (win, pathname, collectionUid, collectionPath) => {
     }
   }
 
-  if (hasBruExtension(pathname)) {
+  if (hasRequestExtension(pathname)) {
     try {
       const file = {
         meta: {
@@ -470,6 +503,9 @@ const change = async (win, pathname, collectionUid, collectionPath) => {
 
       const bru = fs.readFileSync(pathname, 'utf8');
       const fileStats = fs.statSync(pathname);
+      // Detect format from file extension
+      const filetype = pathname.toLowerCase().endsWith('.yml') || pathname.toLowerCase().endsWith('.yaml') ? 'yaml' : 'bru';
+      file.data = await parseRequest(bru, { format: filetype });
 
       if (fileStats.size >= MAX_FILE_SIZE) {
         const parsedData = await parseLargeRequestWithRedaction(bru);
@@ -496,7 +532,7 @@ const unlink = (win, pathname, collectionUid, collectionPath) => {
     return unlinkEnvironmentFile(win, pathname, collectionUid);
   }
 
-  if (hasBruExtension(pathname)) {
+  if (hasRequestExtension(pathname)) {
     const file = {
       meta: {
         collectionUid,

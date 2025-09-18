@@ -96,6 +96,11 @@ const hasBruExtension = (filename) => {
   return ['bru'].some((ext) => filename.toLowerCase().endsWith(`.${ext}`));
 };
 
+const hasRequestExtension = (filename) => {
+  if (!filename || typeof filename !== 'string') return false;
+  return ['bru', 'yml', 'yaml'].some((ext) => filename.toLowerCase().endsWith(`.${ext}`));
+};
+
 const createDirectory = async (dir) => {
   if (!dir) {
     throw new Error(`directory: path is null`);
@@ -356,6 +361,7 @@ module.exports = {
   writeFile,
   hasJsonExtension,
   hasBruExtension,
+  hasRequestExtension,
   createDirectory,
   browseDirectory,
   browseFiles,
