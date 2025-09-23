@@ -43,7 +43,7 @@ const CreateCollection = ({ onClose }) => {
         })
         .required('folder name is required'),
       collectionLocation: Yup.string().min(1, 'location is required').required('location is required'),
-      filetype: Yup.string().oneOf(['bru', 'yaml'], 'invalid filetype').required('filetype is required')
+      filetype: Yup.string().oneOf(['bru', 'yaml', 'opencollection'], 'invalid filetype').required('filetype is required')
     }),
     onSubmit: (values) => {
       dispatch(createCollection(values.collectionName, values.collectionFolderName, values.collectionLocation, values.filetype))
@@ -214,7 +214,7 @@ const CreateCollection = ({ onClose }) => {
               <div className="mt-4">
                 <label htmlFor="filetype" className="flex items-center font-semibold">
                   File Format
-                  <Help width="300">
+                  <Help width="350">
                     <p>
                       Choose the file format for storing requests in this collection.
                     </p>
@@ -223,6 +223,9 @@ const CreateCollection = ({ onClose }) => {
                     </p>
                     <p className="mt-1">
                       <strong>YAML:</strong> Industry-standard YAML format (.yml files)
+                    </p>
+                    <p className="mt-1">
+                      <strong>Open Collection:</strong> Single YAML file containing entire collection (requests, folders, environments)
                     </p>
                   </Help>
                 </label>
@@ -235,6 +238,7 @@ const CreateCollection = ({ onClose }) => {
                 >
                   <option value="bru">BRU Format (.bru)</option>
                   <option value="yaml">YAML Format (.yml)</option>
+                  <option value="opencollection">Open Collection (.yml)</option>
                 </select>
                 {formik.touched.filetype && formik.errors.filetype ? (
                   <div className="text-red-500">{formik.errors.filetype}</div>

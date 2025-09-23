@@ -15,7 +15,8 @@ const {
   parseFolder,
   stringifyFolder,
   parseEnvironment,
-  stringifyEnvironment
+  stringifyEnvironment,
+  jsonToOpenCollection
 } = require('@usebruno/filestore');
 const brunoConverters = require('@usebruno/converters');
 const { postmanToBruno } = brunoConverters;
@@ -44,13 +45,15 @@ const {
   exists,
   isFile,
   isDirectory,
+  hasSubDirectories,
   getCollectionStats,
   rename,
   deleteFile,
   lstat,
   move,
   deleteDirectory,
-  browseDirectory
+  browseDirectory,
+  safeToRename
 } = require('../utils/filesystem');
 const { openCollectionDialog } = require('../app/collections');
 const { stringifyJson, safeParseJSON, generateUidBasedOnHash } = require('../utils/common');
@@ -135,7 +138,99 @@ const getFiletypeFromExtension = (filePath) => {
     return 'yaml';
   }
   return 'bru';
-}
+};
+
+const findCollectionPathFromRequest = async (requestPath, lastOpenedCollections) => {
+  // Find the collection that contains this request path
+  for (const collectionPath of lastOpenedCollections.getAll()) {
+    if (requestPath.startsWith(collectionPath)) {
+      return collectionPath;
+    }
+  }
+  
+  // Fallback: traverse up the directory tree to find bruno.json
+  let currentPath = path.dirname(requestPath);
+  while (currentPath && currentPath !== path.dirname(currentPath)) {
+    const brunoJsonPath = path.join(currentPath, 'bruno.json');
+    if (fs.existsSync(brunoJsonPath)) {
+      return currentPath;
+    }
+    currentPath = path.dirname(currentPath);
+  }
+  
+  throw new Error('Could not find collection path for request');
+};
+
+const updateFolderInCollection = (items, folderPath, folderData) => {
+  const pathParts = folderPath.split('/').filter(p => p);
+  
+  // If no path parts, we're updating the root collection
+  if (pathParts.length === 0) {
+    return false;
+  }
+  
+  for (let item of items) {
+    if (item.type === 'folder' && item.name === pathParts[0]) {
+      if (pathParts.length === 1) {
+        // Initialize request object if it doesn't exist
+        if (!item.request) {
+          item.request = {};
+        }
+        
+        // Update this folder - handle Bruno's internal structure
+        // Check for both direct properties and nested request properties
+        if (folderData.auth) {
+          item.request.auth = folderData.auth;
+        } else if (folderData.request?.auth) {
+          item.request.auth = folderData.request.auth;
+        }
+        
+        if (folderData.headers) {
+          item.request.headers = folderData.headers;
+        } else if (folderData.request?.headers) {
+          item.request.headers = folderData.request.headers;
+        }
+        
+        if (folderData.vars) {
+          item.request.vars = folderData.vars;
+        } else if (folderData.request?.vars) {
+          item.request.vars = folderData.request.vars;
+        }
+        
+        if (folderData.docs) {
+          item.request.docs = folderData.docs;
+        } else if (folderData.request?.docs) {
+          item.request.docs = folderData.request.docs;
+        }
+        
+        if (folderData.meta && folderData.meta.name) {
+          item.name = folderData.meta.name;
+        }
+        
+        // Handle script updates
+        if (folderData.script) {
+          item.request.script = folderData.script;
+        } else if (folderData.request?.script) {
+          item.request.script = folderData.request.script;
+        }
+        
+        // Handle tests updates
+        if (folderData.tests) {
+          item.request.tests = folderData.tests;
+        } else if (folderData.request?.tests) {
+          item.request.tests = folderData.request.tests;
+        }
+        
+        return true;
+      } else if (item.items) {
+        // Continue searching in nested folders
+        return updateFolderInCollection(item.items, pathParts.slice(1).join('/'), folderData);
+      }
+    }
+  }
+  
+  return false;
+};
 
 const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollections) => {
   // create collection
@@ -176,6 +271,19 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
         
         const content = await stringifyJson(brunoConfig);
         await writeFile(path.join(dirPath, 'bruno.json'), content);
+
+        // Create collection.yml for opencollection format
+        if (filetype === 'opencollection') {
+          const emptyCollection = {
+            name: collectionName,
+            items: [],
+            environments: []
+          };
+          
+          const { jsonToOpenCollection } = require('@usebruno/filestore');
+          const collectionYaml = jsonToOpenCollection(emptyCollection);
+          await writeFile(path.join(dirPath, 'collection.yml'), collectionYaml);
+        }
 
         const { size, filesCount } = await getCollectionStats(dirPath);
         brunoConfig.size = size;
@@ -266,8 +374,44 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
     try {
       const { name: folderName, root: folderRoot = {}, pathname: folderPathname } = folder;
       
-      // Determine filetype from collection
-      const filetype = await getCollectionFiletype(folderPathname, lastOpenedCollections);
+      // Find collection path and check if it's opencollection
+      const collectionPath = await findCollectionPathFromRequest(folderPathname, lastOpenedCollections);
+      const filetype = await getCollectionFiletype(collectionPath, lastOpenedCollections);
+      
+      if (filetype === 'opencollection') {
+        // Handle virtual folder update for opencollection
+        const collectionUid = generateUidBasedOnHash(collectionPath);
+        const relativePath = path.relative(collectionPath, folderPathname);
+        
+        // Import virtual filesystem from collection-watcher
+        const collectionWatcher = require('../app/collection-watcher');
+        const virtualFS = collectionWatcher.virtualFS;
+        
+        // Load current collection to find the folder
+        let collection = virtualFS.collections.get(collectionUid);
+        if (!collection) {
+          collection = virtualFS.loadCollection(collectionUid, collectionPath);
+        }
+        
+        if (collection) {
+          // Update folder properties in the collection
+          const updateResult = updateFolderInCollection(collection.items, relativePath, folderRoot);
+          
+          if (updateResult) {
+            // Save the updated collection
+            const success = virtualFS.updateCollection(collectionUid, collectionPath, collection);
+            
+            if (!success) {
+              throw new Error('Failed to update folder in opencollection');
+            }
+          } else {
+            throw new Error('Failed to find and update folder in opencollection');
+          }
+        }
+        
+        return;
+      }
+
       const extension = filetype === 'yaml' ? '.yml' : '.bru';
       const folderBruFilePath = path.join(folderPathname, `folder${extension}`);
 
@@ -287,6 +431,95 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
     try {
       // Determine filetype from collection
       const filetype = await getCollectionFiletype(collectionPathname, lastOpenedCollections);
+      
+      if (filetype === 'opencollection') {
+        // Handle collection root update for opencollection
+        const collectionUid = generateUidBasedOnHash(collectionPathname);
+        
+        // Import virtual filesystem from collection-watcher
+        const collectionWatcher = require('../app/collection-watcher');
+        const virtualFS = collectionWatcher.virtualFS;
+        
+        // Load current collection
+        let collection = virtualFS.collections.get(collectionUid);
+        if (!collection) {
+          collection = virtualFS.loadCollection(collectionUid, collectionPathname);
+        }
+        
+        if (collection) {
+          // Ensure root structure exists
+          if (!collection.root) {
+            collection.root = {};
+          }
+          if (!collection.root.request) {
+            collection.root.request = {};
+          }
+          
+          // Update collection root properties (both top-level and nested for compatibility)
+          if (collectionRoot.auth) {
+            collection.auth = collectionRoot.auth;
+            collection.root.request.auth = collectionRoot.auth;
+          }
+          if (collectionRoot.headers) {
+            collection.headers = collectionRoot.headers;
+            collection.root.request.headers = collectionRoot.headers;
+          }
+          if (collectionRoot.vars) {
+            collection.vars = collectionRoot.vars;
+            collection.root.request.vars = collectionRoot.vars;
+          }
+          if (collectionRoot.docs) {
+            collection.docs = collectionRoot.docs;
+            collection.root.docs = collectionRoot.docs;
+          }
+          if (collectionRoot.script) {
+            collection.script = collectionRoot.script;
+            collection.root.request.script = collectionRoot.script;
+          }
+          if (collectionRoot.tests) {
+            collection.tests = collectionRoot.tests;
+            collection.root.request.tests = collectionRoot.tests;
+          }
+          
+          // Also check for request nested structure (Bruno's internal structure)
+          if (collectionRoot.request) {
+            if (collectionRoot.request.auth) {
+              collection.auth = collectionRoot.request.auth;
+              collection.root.request.auth = collectionRoot.request.auth;
+            }
+            if (collectionRoot.request.headers) {
+              collection.headers = collectionRoot.request.headers;
+              collection.root.request.headers = collectionRoot.request.headers;
+            }
+            if (collectionRoot.request.vars) {
+              collection.vars = collectionRoot.request.vars;
+              collection.root.request.vars = collectionRoot.request.vars;
+            }
+            if (collectionRoot.request.docs) {
+              collection.docs = collectionRoot.request.docs;
+              collection.root.docs = collectionRoot.request.docs;
+            }
+            if (collectionRoot.request.script) {
+              collection.script = collectionRoot.request.script;
+              collection.root.request.script = collectionRoot.request.script;
+            }
+            if (collectionRoot.request.tests) {
+              collection.tests = collectionRoot.request.tests;
+              collection.root.request.tests = collectionRoot.request.tests;
+            }
+          }
+          
+          // Save the updated collection
+          const success = virtualFS.updateCollection(collectionUid, collectionPathname, collection);
+          
+          if (!success) {
+            throw new Error('Failed to update collection root in opencollection');
+          }
+        }
+        
+        return;
+      }
+
       const extension = filetype === 'yaml' ? '.yml' : '.bru';
       const collectionBruFilePath = path.join(collectionPathname, `collection${extension}`);
 
@@ -300,6 +533,64 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
   // new request
   ipcMain.handle('renderer:new-request', async (event, pathname, request) => {
     try {
+      // Check if this is an opencollection virtual file
+      const collectionPath = await findCollectionPathFromRequest(pathname, lastOpenedCollections);
+      const collectionFiletype = await getCollectionFiletype(pathname, lastOpenedCollections);
+      
+      if (collectionFiletype === 'opencollection') {
+        // Handle virtual file creation for opencollection
+        const collectionUid = generateUidBasedOnHash(collectionPath);
+        const relativePath = path.relative(collectionPath, pathname);
+        const folderPath = path.dirname(relativePath);
+        
+        // Import virtual filesystem from collection-watcher
+        const collectionWatcher = require('../app/collection-watcher');
+        const virtualFS = collectionWatcher.virtualFS;
+        
+        // Prepare request data for opencollection format
+        const requestData = {
+          uid: generateUidBasedOnHash(pathname),
+          type: request.type || 'http-request',
+          name: request.name,
+          seq: request.seq || 1,
+          settings: request.settings || {},
+          tags: request.tags || [],
+          request: {
+            method: (request.request?.method || 'GET'),
+            url: (request.request?.url || ''),
+            params: request.request?.params || [],
+            headers: request.request?.headers || [],
+            auth: request.request?.auth || { mode: 'inherit' },
+            body: {
+              mode: request.request?.body?.mode || 'none',
+              json: request.request?.body?.json || '',
+              text: request.request?.body?.text || '',
+              xml: request.request?.body?.xml || '',
+              formUrlEncoded: request.request?.body?.formUrlEncoded || [],
+              multipartForm: request.request?.body?.multipartForm || [],
+              file: request.request?.body?.file || []
+            },
+            script: request.request?.script || {},
+            vars: {
+              req: request.request?.vars?.req || [],
+              res: request.request?.vars?.res || []
+            },
+            assertions: request.request?.assertions || [],
+            tests: request.request?.tests || '',
+            docs: request.request?.docs || ''
+          }
+        };
+        
+        const finalFolderPath = folderPath === '.' ? '' : folderPath;
+        const success = virtualFS.addRequest(collectionUid, collectionPath, finalFolderPath, requestData);
+        
+        if (!success) {
+          throw new Error('Failed to add request to opencollection');
+        }
+        
+        return;
+      }
+
       if (fs.existsSync(pathname)) {
         throw new Error(`path: ${pathname} already exists`);
       }
@@ -327,6 +618,28 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
   // save request
   ipcMain.handle('renderer:save-request', async (event, pathname, request) => {
     try {
+      // Check if this is an opencollection virtual file
+      const collectionPath = await findCollectionPathFromRequest(pathname, lastOpenedCollections);
+      const collectionFiletype = await getCollectionFiletype(pathname, lastOpenedCollections);
+      
+      if (collectionFiletype === 'opencollection') {
+        // Handle virtual file save for opencollection
+        const collectionUid = generateUidBasedOnHash(collectionPath);
+                 const relativePath = path.relative(collectionPath, pathname);
+         const requestPath = relativePath.replace(/\.(yml|yaml|bru)$/, '');
+        
+                 // Import virtual filesystem from collection-watcher
+         const collectionWatcher = require('../app/collection-watcher');
+         const virtualFS = collectionWatcher.virtualFS;
+        const success = virtualFS.updateRequest(collectionUid, collectionPath, requestPath, request);
+        
+        if (!success) {
+          throw new Error('Failed to update request in opencollection');
+        }
+        
+        return;
+      }
+
       if (!fs.existsSync(pathname)) {
         throw new Error(`path: ${pathname} does not exist`);
       }
@@ -374,13 +687,74 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
   // create environment
   ipcMain.handle('renderer:create-environment', async (event, collectionPathname, name, variables) => {
     try {
+      // Determine filetype from collection
+      const filetype = await getCollectionFiletype(collectionPathname, lastOpenedCollections);
+      
+      if (filetype === 'opencollection') {
+        // Handle environment creation for opencollection
+        const collectionUid = generateUidBasedOnHash(collectionPathname);
+        
+        // Import virtual filesystem from collection-watcher
+        const collectionWatcher = require('../app/collection-watcher');
+        const virtualFS = collectionWatcher.virtualFS;
+        
+        // Load current collection
+        let collection = virtualFS.collections.get(collectionUid);
+        if (!collection) {
+          collection = virtualFS.loadCollection(collectionUid, collectionPathname);
+        }
+        
+        if (collection) {
+          // Check if environment already exists
+          const existingEnv = collection.environments.find(env => env.name === name);
+          if (existingEnv) {
+            throw new Error(`Environment '${name}' already exists`);
+          }
+          
+          // Add new environment
+          const newEnvironment = {
+            uid: generateUidBasedOnHash(`${collectionPathname}-env-${name}`),
+            name: name,
+            variables: variables || []
+          };
+          
+          collection.environments.push(newEnvironment);
+          
+          // Save the updated collection
+          const success = virtualFS.updateCollection(collectionUid, collectionPathname, collection);
+          
+          if (!success) {
+            throw new Error('Failed to create environment in opencollection');
+          }
+          
+          // Handle secrets
+          if (envHasSecrets(newEnvironment)) {
+            environmentSecretsStore.storeEnvSecrets(collectionPathname, newEnvironment);
+          }
+          
+          // Send add environment file event to UI
+          const envFile = {
+            meta: {
+              collectionUid,
+              pathname: path.join(collectionPathname, `environments/${name}.yml`),
+              name: `${name}.yml`
+            },
+            data: newEnvironment
+          };
+          
+          if (virtualFS.mainWindow) {
+            virtualFS.mainWindow.webContents.send('main:collection-tree-updated', 'addEnvironmentFile', envFile);
+          }
+        }
+        
+        return;
+      }
+
       const envDirPath = path.join(collectionPathname, 'environments');
       if (!fs.existsSync(envDirPath)) {
         await createDirectory(envDirPath);
       }
 
-      // Determine filetype from collection
-      const filetype = await getCollectionFiletype(collectionPathname, lastOpenedCollections);
       const extension = filetype === 'yaml' ? '.yml' : '.bru';
       const envFilePath = path.join(envDirPath, `${name}${extension}`);
       
@@ -408,13 +782,71 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
   // save environment
   ipcMain.handle('renderer:save-environment', async (event, collectionPathname, environment) => {
     try {
+      // Determine filetype from collection
+      const filetype = await getCollectionFiletype(collectionPathname, lastOpenedCollections);
+      
+      if (filetype === 'opencollection') {
+        // Handle environment save for opencollection
+        const collectionUid = generateUidBasedOnHash(collectionPathname);
+        
+        // Import virtual filesystem from collection-watcher
+        const collectionWatcher = require('../app/collection-watcher');
+        const virtualFS = collectionWatcher.virtualFS;
+        
+        // Load current collection
+        let collection = virtualFS.collections.get(collectionUid);
+        if (!collection) {
+          collection = virtualFS.loadCollection(collectionUid, collectionPathname);
+        }
+        
+        if (collection) {
+          // Find and update the environment
+          const envIndex = collection.environments.findIndex(env => env.name === environment.name);
+          if (envIndex !== -1) {
+            collection.environments[envIndex] = {
+              uid: collection.environments[envIndex].uid,
+              name: environment.name,
+              variables: environment.variables || []
+            };
+            
+            // Save the updated collection
+            const success = virtualFS.updateCollection(collectionUid, collectionPathname, collection);
+            
+            if (!success) {
+              throw new Error('Failed to update environment in opencollection');
+            }
+            
+            // Handle secrets
+            if (envHasSecrets(environment)) {
+              environmentSecretsStore.storeEnvSecrets(collectionPathname, environment);
+            }
+            
+            // Send change environment file event to UI
+            const envFile = {
+              meta: {
+                collectionUid,
+                pathname: path.join(collectionPathname, `environments/${environment.name}.yml`),
+                name: `${environment.name}.yml`
+              },
+              data: collection.environments[envIndex]
+            };
+            
+            if (virtualFS.mainWindow) {
+              virtualFS.mainWindow.webContents.send('main:collection-tree-updated', 'changeEnvironmentFile', envFile);
+            }
+          } else {
+            throw new Error(`Environment ${environment.name} not found in opencollection`);
+          }
+        }
+        
+        return;
+      }
+
       const envDirPath = path.join(collectionPathname, 'environments');
       if (!fs.existsSync(envDirPath)) {
         await createDirectory(envDirPath);
       }
 
-      // Determine filetype from collection
-      const filetype = await getCollectionFiletype(collectionPathname, lastOpenedCollections);
       const extension = filetype === 'yaml' ? '.yml' : '.bru';
       const envFilePath = path.join(envDirPath, `${environment.name}${extension}`);
       
@@ -436,6 +868,75 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
   // rename environment
   ipcMain.handle('renderer:rename-environment', async (event, collectionPathname, environmentName, newName) => {
     try {
+      // Determine filetype from collection
+      const filetype = await getCollectionFiletype(collectionPathname, lastOpenedCollections);
+      
+      if (filetype === 'opencollection') {
+        // Handle environment rename for opencollection
+        const collectionUid = generateUidBasedOnHash(collectionPathname);
+        
+        // Import virtual filesystem from collection-watcher
+        const collectionWatcher = require('../app/collection-watcher');
+        const virtualFS = collectionWatcher.virtualFS;
+        
+        // Load current collection
+        let collection = virtualFS.collections.get(collectionUid);
+        if (!collection) {
+          collection = virtualFS.loadCollection(collectionUid, collectionPathname);
+        }
+        
+        if (collection) {
+          // Check if new name already exists
+          const existingEnv = collection.environments.find(env => env.name === newName);
+          if (existingEnv) {
+            throw new Error(`Environment '${newName}' already exists`);
+          }
+          
+          // Find and rename the environment
+          const envIndex = collection.environments.findIndex(env => env.name === environmentName);
+          if (envIndex === -1) {
+            throw new Error(`Environment '${environmentName}' does not exist`);
+          }
+          
+          collection.environments[envIndex].name = newName;
+          
+          // Save the updated collection
+          const success = virtualFS.updateCollection(collectionUid, collectionPathname, collection);
+          
+          if (!success) {
+            throw new Error('Failed to rename environment in opencollection');
+          }
+          
+          // Rename secrets
+          environmentSecretsStore.renameEnvironment(collectionPathname, environmentName, newName);
+          
+          // Send rename events to UI
+          const oldEnvFile = {
+            meta: {
+              collectionUid,
+              pathname: path.join(collectionPathname, `environments/${environmentName}.yml`),
+              name: `${environmentName}.yml`
+            }
+          };
+          
+          const newEnvFile = {
+            meta: {
+              collectionUid,
+              pathname: path.join(collectionPathname, `environments/${newName}.yml`),
+              name: `${newName}.yml`
+            },
+            data: collection.environments[envIndex]
+          };
+          
+          if (virtualFS.mainWindow) {
+            virtualFS.mainWindow.webContents.send('main:collection-tree-updated', 'unlinkEnvironmentFile', oldEnvFile);
+            virtualFS.mainWindow.webContents.send('main:collection-tree-updated', 'addEnvironmentFile', newEnvFile);
+          }
+        }
+        
+        return;
+      }
+
       const envDirPath = path.join(collectionPathname, 'environments');
       const envFilePath = path.join(envDirPath, `${environmentName}.bru`);
       if (!fs.existsSync(envFilePath)) {
@@ -458,6 +959,59 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
   // delete environment
   ipcMain.handle('renderer:delete-environment', async (event, collectionPathname, environmentName) => {
     try {
+      // Determine filetype from collection
+      const filetype = await getCollectionFiletype(collectionPathname, lastOpenedCollections);
+      
+      if (filetype === 'opencollection') {
+        // Handle environment deletion for opencollection
+        const collectionUid = generateUidBasedOnHash(collectionPathname);
+        
+        // Import virtual filesystem from collection-watcher
+        const collectionWatcher = require('../app/collection-watcher');
+        const virtualFS = collectionWatcher.virtualFS;
+        
+        // Load current collection
+        let collection = virtualFS.collections.get(collectionUid);
+        if (!collection) {
+          collection = virtualFS.loadCollection(collectionUid, collectionPathname);
+        }
+        
+        if (collection) {
+          // Find and remove the environment
+          const envIndex = collection.environments.findIndex(env => env.name === environmentName);
+          if (envIndex === -1) {
+            throw new Error(`Environment '${environmentName}' does not exist`);
+          }
+          
+          collection.environments.splice(envIndex, 1);
+          
+          // Save the updated collection
+          const success = virtualFS.updateCollection(collectionUid, collectionPathname, collection);
+          
+          if (!success) {
+            throw new Error('Failed to delete environment in opencollection');
+          }
+          
+          // Delete secrets
+          environmentSecretsStore.deleteEnvironment(collectionPathname, environmentName);
+          
+          // Send unlink environment file event to UI
+          const envFile = {
+            meta: {
+              collectionUid,
+              pathname: path.join(collectionPathname, `environments/${environmentName}.yml`),
+              name: `${environmentName}.yml`
+            }
+          };
+          
+          if (virtualFS.mainWindow) {
+            virtualFS.mainWindow.webContents.send('main:collection-tree-updated', 'unlinkEnvironmentFile', envFile);
+          }
+        }
+        
+        return;
+      }
+
       const envDirPath = path.join(collectionPathname, 'environments');
       const envFilePath = path.join(envDirPath, `${environmentName}.bru`);
       if (!fs.existsSync(envFilePath)) {
@@ -475,6 +1029,63 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
   // rename item
   ipcMain.handle('renderer:rename-item-name', async (event, { itemPath, newName }) => {
     try {
+      // Find collection path and check if it's opencollection
+      const collectionPath = await findCollectionPathFromRequest(itemPath, lastOpenedCollections);
+      const filetype = await getCollectionFiletype(collectionPath, lastOpenedCollections);
+      
+      if (filetype === 'opencollection') {
+        // Handle virtual item rename for opencollection
+        const collectionUid = generateUidBasedOnHash(collectionPath);
+        const relativePath = path.relative(collectionPath, itemPath);
+        
+        // Import virtual filesystem from collection-watcher
+        const collectionWatcher = require('../app/collection-watcher');
+        const virtualFS = collectionWatcher.virtualFS;
+        
+        // Load current collection
+        let collection = virtualFS.collections.get(collectionUid);
+        if (!collection) {
+          collection = virtualFS.loadCollection(collectionUid, collectionPath);
+        }
+        
+        if (collection) {
+          const cleanPath = relativePath.replace(/\.(bru|yml|yaml)$/, '');
+          
+          // Determine if this is a folder or request based on the original path
+          const isFolder = !path.basename(itemPath).includes('.');
+          
+          // Use path-based approach to find and rename the item
+          const renamedItem = virtualFS.renameItemByPath(collection.items, cleanPath, newName, isFolder);
+          
+          if (renamedItem) {
+            // Save the updated collection
+            const updateSuccess = virtualFS.updateCollection(collectionUid, collectionPath, collection);
+            
+            if (!updateSuccess) {
+              throw new Error('Failed to rename item in opencollection');
+            }
+            
+            // Send targeted change event to UI - only for the renamed item
+            const itemFile = {
+              meta: {
+                collectionUid,
+                pathname: itemPath,
+                name: path.basename(itemPath),
+                uid: renamedItem.uid
+              },
+              data: renamedItem
+            };
+            
+            if (virtualFS.mainWindow) {
+              virtualFS.mainWindow.webContents.send('main:collection-tree-updated', 'change', itemFile);
+            }
+          } else {
+            throw new Error('Failed to find item by path in opencollection');
+          }
+        }
+        
+        return;
+      }
 
       if (!fs.existsSync(itemPath)) {
         throw new Error(`path: ${itemPath} does not exist`);
@@ -520,7 +1131,94 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
   ipcMain.handle('renderer:rename-item-filename', async (event, { oldPath, newPath, newName, newFilename }) => {
     const tempDir = path.join(os.tmpdir(), `temp-folder-${Date.now()}`);
     const isWindowsOSAndNotWSLPathAndItemHasSubDirectories = isDirectory(oldPath) && isWindowsOS() && !isWSLPath(oldPath) && hasSubDirectories(oldPath);
+    
     try {
+      // Find collection path and check if it's opencollection
+      const collectionPath = await findCollectionPathFromRequest(oldPath, lastOpenedCollections);
+      const filetype = await getCollectionFiletype(collectionPath, lastOpenedCollections);
+      
+      if (filetype === 'opencollection') {
+        // Handle virtual item filename rename for opencollection
+        const collectionUid = generateUidBasedOnHash(collectionPath);
+        const oldRelativePath = path.relative(collectionPath, oldPath);
+        const newRelativePath = path.relative(collectionPath, newPath);
+        
+        // Import virtual filesystem from collection-watcher
+        const collectionWatcher = require('../app/collection-watcher');
+        const virtualFS = collectionWatcher.virtualFS;
+        
+        // Load current collection
+        let collection = virtualFS.collections.get(collectionUid);
+        if (!collection) {
+          collection = virtualFS.loadCollection(collectionUid, collectionPath);
+        }
+        
+        if (collection) {
+          const oldCleanPath = oldRelativePath.replace(/\.(bru|yml|yaml)$/, '');
+          
+          // Determine if this is a folder or request based on the original path
+          const isFolder = !path.basename(oldPath).includes('.');
+          
+          // Use path-based approach to find and rename the item
+          const renamedItem = virtualFS.renameItemByPath(collection.items, oldCleanPath, newName, isFolder);
+          
+          if (renamedItem) {
+            // Save the updated collection
+            const updateSuccess = virtualFS.updateCollection(collectionUid, collectionPath, collection);
+            
+            if (!updateSuccess) {
+              throw new Error('Failed to rename item in opencollection');
+            }
+            
+            // Send unlink old and add new events to UI
+            const oldFile = {
+              meta: {
+                collectionUid,
+                pathname: oldPath,
+                name: path.basename(oldPath),
+                uid: renamedItem.uid
+              }
+            };
+            
+            const newFile = {
+              meta: {
+                collectionUid,
+                pathname: newPath,
+                name: path.basename(newPath),
+                uid: renamedItem.uid
+              },
+              data: renamedItem
+            };
+            
+            if (virtualFS.mainWindow) {
+              if (renamedItem.type === 'folder') {
+                // For folder renames, we need to handle it carefully to preserve children
+                // First, send unlink for the old folder
+                virtualFS.mainWindow.webContents.send('main:collection-tree-updated', 'unlink', oldFile);
+                
+                // Then send addDir for the new folder
+                virtualFS.mainWindow.webContents.send('main:collection-tree-updated', 'addDir', newFile);
+                
+                // Finally, send addFile/addDir events for all child items to restore them
+                if (renamedItem.items && renamedItem.items.length > 0) {
+                  virtualFS.sendChildItemEvents(collectionUid, collectionPath, renamedItem, newPath);
+                }
+              } else {
+                // For requests, simple unlink/addFile is fine
+                virtualFS.mainWindow.webContents.send('main:collection-tree-updated', 'unlink', oldFile);
+                virtualFS.mainWindow.webContents.send('main:collection-tree-updated', 'addFile', newFile);
+              }
+            }
+            
+            return newPath;
+          } else {
+            throw new Error('Failed to find item by path in opencollection');
+          }
+        }
+        
+        return newPath;
+      }
+
       // Check if the old path exists
       if (!fs.existsSync(oldPath)) {
         throw new Error(`path: ${oldPath} does not exist`);
@@ -640,11 +1338,42 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
     const resolvedFolderName = sanitizeName(path.basename(pathname));
     pathname = path.join(path.dirname(pathname), resolvedFolderName);
     try {
+      // Find collection path and check if it's opencollection
+      const collectionPath = await findCollectionPathFromRequest(pathname, lastOpenedCollections);
+      const collectionFiletype = await getCollectionFiletype(collectionPath, lastOpenedCollections);
+      
+      if (collectionFiletype === 'opencollection') {
+        // Handle virtual folder creation for opencollection
+        const collectionUid = generateUidBasedOnHash(collectionPath);
+        const relativePath = path.relative(collectionPath, pathname);
+        const parentFolderPath = path.dirname(relativePath);
+        
+        // Import virtual filesystem from collection-watcher
+        const collectionWatcher = require('../app/collection-watcher');
+        const virtualFS = collectionWatcher.virtualFS;
+        
+        // Prepare folder data for opencollection format
+        const folderData = {
+          uid: generateUidBasedOnHash(pathname),
+          type: 'folder',
+          name: folderBruJsonData.name || path.basename(pathname),
+          seq: folderBruJsonData.seq || 1,
+          items: []
+        };
+        
+        const success = virtualFS.addFolder(collectionUid, collectionPath, parentFolderPath === '.' ? '' : parentFolderPath, folderData);
+        
+        if (!success) {
+          throw new Error('Failed to add folder to opencollection');
+        }
+        
+        return;
+      }
+
       if (!fs.existsSync(pathname)) {
         fs.mkdirSync(pathname);
         
         // Determine filetype from collection
-        const collectionPath = pathname;
         let parentCollectionPath = path.dirname(pathname);
         // Walk up to find the collection root
         while (parentCollectionPath !== path.dirname(parentCollectionPath)) {
@@ -670,6 +1399,34 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
   // delete file/folder
   ipcMain.handle('renderer:delete-item', async (event, pathname, type) => {
     try {
+      // Check if this is an opencollection virtual file/folder
+      const collectionPath = await findCollectionPathFromRequest(pathname, lastOpenedCollections);
+      const collectionFiletype = await getCollectionFiletype(collectionPath, lastOpenedCollections);
+      
+      if (collectionFiletype === 'opencollection') {
+        // Handle virtual file/folder deletion for opencollection
+        const collectionUid = generateUidBasedOnHash(collectionPath);
+        const relativePath = path.relative(collectionPath, pathname);
+        const itemPath = relativePath.replace(/\.(yml|yaml)$/, '');
+        
+        // Import virtual filesystem from collection-watcher
+        const collectionWatcher = require('../app/collection-watcher');
+        const virtualFS = collectionWatcher.virtualFS;
+        
+        let success = false;
+        if (type === 'folder') {
+          success = virtualFS.removeFolder(collectionUid, collectionPath, itemPath);
+        } else if (['http-request', 'graphql-request', 'grpc-request'].includes(type)) {
+          success = virtualFS.removeRequest(collectionUid, collectionPath, itemPath);
+        }
+        
+        if (!success) {
+          throw new Error(`Failed to delete ${type} from opencollection`);
+        }
+        
+        return;
+      }
+
       if (type === 'folder') {
         if (!fs.existsSync(pathname)) {
           return Promise.reject(new Error('The directory does not exist'));

@@ -22,6 +22,588 @@ const UiStateSnapshot = require('../store/ui-state-snapshot');
 const { parseFileMeta, hydrateRequestWithUuid } = require('../utils/collection');
 const { parseLargeRequestWithRedaction } = require('../utils/parse');
 
+// Virtual File System for OpenCollection
+class OpenCollectionVirtualFS {
+  constructor() {
+    this.collections = new Map(); // collectionUid -> { items: [], environments: [] }
+    this.mainWindow = null;
+  }
+
+  setMainWindow(win) {
+    this.mainWindow = win;
+  }
+
+  loadCollection(collectionUid, collectionPath) {
+    try {
+      const collectionFilePath = path.join(collectionPath, 'collection.yml');
+      
+      if (fs.existsSync(collectionFilePath)) {
+        const content = fs.readFileSync(collectionFilePath, 'utf8');
+        
+        const { openCollectionToJson } = require('@usebruno/filestore');
+        const collection = openCollectionToJson(content);
+        
+
+        
+        this.collections.set(collectionUid, collection);
+        return collection;
+      }
+    } catch (error) {
+      console.error('Error loading opencollection:', error);
+    }
+    return null;
+  }
+
+  getVirtualFiles(collectionUid) {
+    const collection = this.collections.get(collectionUid);
+    if (!collection) return [];
+    
+    const virtualFiles = [];
+    
+    // Generate virtual files for requests and folders
+    this.generateVirtualFilesForItems(collection.items || [], '', virtualFiles);
+    
+    // Generate virtual files for environments
+    (collection.environments || []).forEach(env => {
+      virtualFiles.push({
+        type: 'environment',
+        name: env.name,
+        path: `environments/${env.name}.yml`,
+        data: env
+      });
+    });
+    
+    return virtualFiles;
+  }
+
+  generateVirtualFilesForItems(items, basePath, virtualFiles) {
+    items.forEach(item => {
+      const itemPath = basePath ? `${basePath}/${item.name}` : item.name;
+      
+      if (item.type === 'folder') {
+        virtualFiles.push({
+          type: 'folder',
+          name: item.name,
+          path: itemPath,
+          data: item
+        });
+        
+        if (item.items) {
+          this.generateVirtualFilesForItems(item.items, itemPath, virtualFiles);
+        }
+      } else {
+        // Request file
+        const extension = item.type === 'graphql-request' ? '.yml' : '.yml';
+        virtualFiles.push({
+          type: 'request',
+          name: item.name,
+          path: `${itemPath}${extension}`,
+          data: item
+        });
+      }
+    });
+  }
+
+  updateCollection(collectionUid, collectionPath, updatedData) {
+    try {
+      this.collections.set(collectionUid, updatedData);
+      
+      // Write back to file
+      const { jsonToOpenCollection } = require('@usebruno/filestore');
+      const yamlContent = jsonToOpenCollection(updatedData);
+      const collectionFilePath = path.join(collectionPath, 'collection.yml');
+      fs.writeFileSync(collectionFilePath, yamlContent, 'utf8');
+      
+      return true;
+    } catch (error) {
+      console.error('Error updating opencollection:', error);
+      return false;
+    }
+  }
+
+  // Method to refresh UI state after collection changes without losing structure
+  refreshCollectionUI(collectionUid, collectionPath) {
+    if (!this.mainWindow) return;
+    
+    const collection = this.collections.get(collectionUid);
+    if (!collection) return;
+    
+    try {
+      // Send a targeted refresh that preserves the folder structure
+      const refreshPayload = {
+        collectionUid,
+        action: 'refresh-collection',
+        preserveStructure: true
+      };
+      
+      this.mainWindow.webContents.send('main:collection-refresh', refreshPayload);
+    } catch (error) {
+      console.error('Error refreshing collection UI:', error);
+    }
+  }
+
+  addRequest(collectionUid, collectionPath, folderPath, requestData) {
+    let collection = this.collections.get(collectionUid);
+    if (!collection) {
+      // Try to load the collection if it's not in memory
+      collection = this.loadCollection(collectionUid, collectionPath);
+      if (!collection) {
+        console.error('Failed to load collection for addRequest');
+        return false;
+      }
+    }
+    
+    try {
+      // Ensure items array exists
+      if (!collection.items) {
+        collection.items = [];
+      }
+      
+      // Add request to the collection data structure
+      this.addItemToCollection(collection.items, folderPath, requestData);
+      
+      // Update the file
+      const success = this.updateCollection(collectionUid, collectionPath, collection);
+      
+      if (success && this.mainWindow) {
+        // Create virtual file path for the new request
+        const requestPath = folderPath ? `${folderPath}/${requestData.name}` : requestData.name;
+        const virtualPath = path.join(collectionPath, `${requestPath}.yml`);
+        
+        // Send add file event to UI
+        const requestFile = {
+          meta: {
+            collectionUid,
+            pathname: virtualPath,
+            name: `${requestData.name}.yml`
+          },
+          data: requestData
+        };
+        
+        hydrateRequestWithUuid(requestFile.data, virtualPath);
+        this.mainWindow.webContents.send('main:collection-tree-updated', 'addFile', requestFile);
+      }
+      
+      return success;
+    } catch (error) {
+      console.error('Error adding request to opencollection:', error);
+      return false;
+    }
+  }
+
+  updateRequest(collectionUid, collectionPath, requestPath, requestData) {
+    let collection = this.collections.get(collectionUid);
+    if (!collection) {
+      collection = this.loadCollection(collectionUid, collectionPath);
+      if (!collection) return false;
+    }
+    
+    try {
+      // Update request in the collection data structure
+      this.updateItemInCollection(collection.items, requestPath, requestData);
+      
+      // Update the file
+      const success = this.updateCollection(collectionUid, collectionPath, collection);
+      
+      if (success && this.mainWindow) {
+        // Create virtual file path for the updated request
+        const virtualPath = path.join(collectionPath, `${requestPath}.yml`);
+        
+        // Send change file event to UI
+        const requestFile = {
+          meta: {
+            collectionUid,
+            pathname: virtualPath,
+            name: `${path.basename(requestPath)}.yml`
+          },
+          data: requestData
+        };
+        
+        hydrateRequestWithUuid(requestFile.data, virtualPath);
+        this.mainWindow.webContents.send('main:collection-tree-updated', 'change', requestFile);
+      }
+      
+      return success;
+    } catch (error) {
+      console.error('Error updating request in opencollection:', error);
+      return false;
+    }
+  }
+
+  removeRequest(collectionUid, collectionPath, requestPath) {
+    const collection = this.collections.get(collectionUid);
+    if (!collection) return false;
+    
+    try {
+      // Remove request from the collection data structure
+      this.removeItemFromCollection(collection.items, requestPath);
+      
+      // Update the file
+      const success = this.updateCollection(collectionUid, collectionPath, collection);
+      
+      if (success && this.mainWindow) {
+        // Create virtual file path for the removed request
+        const virtualPath = path.join(collectionPath, `${requestPath}.yml`);
+        
+        // Send unlink file event to UI
+        const requestFile = {
+          meta: {
+            collectionUid,
+            pathname: virtualPath,
+            name: `${path.basename(requestPath)}.yml`
+          }
+        };
+        
+        this.mainWindow.webContents.send('main:collection-tree-updated', 'unlink', requestFile);
+      }
+      
+      return success;
+    } catch (error) {
+      console.error('Error removing request from opencollection:', error);
+      return false;
+    }
+  }
+
+  addFolder(collectionUid, collectionPath, folderPath, folderData) {
+    let collection = this.collections.get(collectionUid);
+    if (!collection) {
+      collection = this.loadCollection(collectionUid, collectionPath);
+      if (!collection) return false;
+    }
+    
+    try {
+      // Ensure items array exists
+      if (!collection.items) {
+        collection.items = [];
+      }
+      
+      // Add folder to the collection data structure
+      this.addItemToCollection(collection.items, folderPath, folderData);
+      
+      // Update the file
+      const success = this.updateCollection(collectionUid, collectionPath, collection);
+      
+      if (success && this.mainWindow) {
+        // Create virtual directory path for the new folder
+        const virtualPath = path.join(collectionPath, folderPath ? `${folderPath}/${folderData.name}` : folderData.name);
+        
+        // Send add directory event to UI
+        const directory = {
+          meta: {
+            collectionUid,
+            pathname: virtualPath,
+            name: folderData.name,
+            seq: folderData.seq,
+            uid: folderData.uid
+          }
+        };
+        
+        this.mainWindow.webContents.send('main:collection-tree-updated', 'addDir', directory);
+      }
+      
+      return success;
+    } catch (error) {
+      console.error('Error adding folder to opencollection:', error);
+      return false;
+    }
+  }
+
+  removeFolder(collectionUid, collectionPath, folderPath) {
+    const collection = this.collections.get(collectionUid);
+    if (!collection) return false;
+    
+    try {
+      // Remove folder from the collection data structure
+      this.removeItemFromCollection(collection.items, folderPath);
+      
+      // Update the file
+      const success = this.updateCollection(collectionUid, collectionPath, collection);
+      
+      if (success && this.mainWindow) {
+        // Create virtual directory path for the removed folder
+        const virtualPath = path.join(collectionPath, folderPath);
+        
+        // Send unlink directory event to UI
+        const directory = {
+          meta: {
+            collectionUid,
+            pathname: virtualPath,
+            name: path.basename(folderPath)
+          }
+        };
+        
+        this.mainWindow.webContents.send('main:collection-tree-updated', 'unlinkDir', directory);
+      }
+      
+      return success;
+    } catch (error) {
+      console.error('Error removing folder from opencollection:', error);
+      return false;
+    }
+  }
+
+  // Helper methods for manipulating collection items
+  addItemToCollection(items, folderPath, newItem) {
+    if (!folderPath) {
+      items.push(newItem);
+      return;
+    }
+    
+    const pathParts = folderPath.split('/').filter(p => p);
+    
+    for (let item of items) {
+      // Only match folders when looking for a folder path
+      if (item.name === pathParts[0] && item.type === 'folder') {
+        if (pathParts.length === 1) {
+          if (!item.items) item.items = [];
+          item.items.push(newItem);
+          return;
+        } else if (item.items) {
+          this.addItemToCollection(item.items, pathParts.slice(1).join('/'), newItem);
+          return;
+        }
+      }
+    }
+  }
+
+  updateItemInCollection(items, path, newData) {
+    const pathParts = path.split('/').filter(p => p);
+    
+    for (let item of items) {
+      if (item.name === pathParts[0]) {
+        if (pathParts.length === 1) {
+          // Final path part - can match any item type
+          Object.assign(item, newData);
+          return true;
+        } else if (item.type === 'folder' && item.items) {
+          // Intermediate path part - only match folders
+          return this.updateItemInCollection(item.items, pathParts.slice(1).join('/'), newData);
+        }
+      }
+    }
+    
+    return false;
+  }
+
+  removeItemFromCollection(items, path) {
+    const pathParts = path.split('/').filter(p => p);
+    
+    if (pathParts.length === 1) {
+      const index = items.findIndex(item => item.name === pathParts[0]);
+      if (index !== -1) {
+        items.splice(index, 1);
+        return true;
+      }
+    } else {
+      for (let item of items) {
+        if (item.name === pathParts[0] && item.type === 'folder' && item.items) {
+          return this.removeItemFromCollection(item.items, pathParts.slice(1).join('/'));
+        }
+      }
+    }
+    
+    return false;
+  }
+
+  renameItemByUid(items, uid, newName) {
+    for (let item of items) {
+      if (item.uid === uid) {
+        item.name = newName;
+        return item;
+      }
+      
+      // If it's a folder, search recursively
+      if (item.type === 'folder' && item.items) {
+        const found = this.renameItemByUid(item.items, uid, newName);
+        if (found) return found;
+      }
+    }
+    
+    return null;
+  }
+
+  renameItemByPath(items, path, newName, isFolder = null) {
+    const pathParts = path.split('/').filter(p => p);
+    
+    if (pathParts.length === 1) {
+      // Final path part - find and rename the item
+      let item;
+      if (isFolder === true) {
+        // Looking for a folder specifically
+        item = items.find(item => item.name === pathParts[0] && item.type === 'folder');
+      } else if (isFolder === false) {
+        // Looking for a request specifically
+        item = items.find(item => item.name === pathParts[0] && item.type !== 'folder');
+      } else {
+        // Fallback - find first match by name
+        item = items.find(item => item.name === pathParts[0]);
+      }
+      
+      if (item) {
+        item.name = newName;
+        return item;
+      }
+    } else {
+      // Intermediate path part - only match folders
+      for (let item of items) {
+        if (item.name === pathParts[0] && item.type === 'folder' && item.items) {
+          return this.renameItemByPath(item.items, pathParts.slice(1).join('/'), newName, isFolder);
+        }
+      }
+    }
+    
+    return null;
+  }
+
+  // Helper method to find an item by UID
+  findItemByUid(items, uid) {
+    for (let item of items) {
+      if (item.uid === uid) {
+        return item;
+      }
+      
+      // If it's a folder, search recursively
+      if (item.type === 'folder' && item.items) {
+        const found = this.findItemByUid(item.items, uid);
+        if (found) return found;
+      }
+    }
+    
+    return null;
+  }
+
+  // Helper method to find an item and determine its type by path (fallback)
+  findItemByPath(items, path) {
+    const pathParts = path.split('/').filter(p => p);
+    
+    if (pathParts.length === 1) {
+      // Final path part - find the item
+      return items.find(item => item.name === pathParts[0]);
+    } else {
+      // Intermediate path part - only match folders
+      for (let item of items) {
+        if (item.name === pathParts[0] && item.type === 'folder' && item.items) {
+          return this.findItemByPath(item.items, pathParts.slice(1).join('/'));
+        }
+      }
+    }
+    
+    return null;
+  }
+
+  // Get all virtual files with their UIDs for path-to-UID mapping
+  getVirtualFilesWithUids(collectionUid) {
+    const collection = this.collections.get(collectionUid);
+    if (!collection) return [];
+    
+    const virtualFiles = [];
+    
+    // Add collection root
+    virtualFiles.push({
+      type: 'collection',
+      path: '',
+      uid: collection.uid,
+      name: collection.name
+    });
+    
+    // Add environments
+    if (collection.environments) {
+      collection.environments.forEach(env => {
+        virtualFiles.push({
+          type: 'environment',
+          path: `environments/${env.name}.yml`,
+          uid: env.uid,
+          name: env.name
+        });
+      });
+    }
+    
+    // Add items (requests and folders)
+    this.generateVirtualFilesWithUids(collection.items || [], '', virtualFiles);
+    
+    return virtualFiles;
+  }
+
+  generateVirtualFilesWithUids(items, basePath, virtualFiles) {
+    items.forEach(item => {
+      const itemPath = basePath ? `${basePath}/${item.name}` : item.name;
+      
+      if (item.type === 'folder') {
+        virtualFiles.push({
+          type: 'folder',
+          path: itemPath,
+          uid: item.uid,
+          name: item.name
+        });
+        
+        if (item.items) {
+          this.generateVirtualFilesWithUids(item.items, itemPath, virtualFiles);
+        }
+      } else {
+        virtualFiles.push({
+          type: item.type,
+          path: `${itemPath}.yml`,
+          uid: item.uid,
+          name: item.name
+        });
+      }
+    });
+  }
+
+  // Send events for all child items of a folder (used after folder rename)
+  sendChildItemEvents(collectionUid, collectionPath, folderItem, folderPath) {
+    if (!this.mainWindow || !folderItem.items) return;
+    
+    const { hydrateRequestWithUuid } = require('../utils/collection');
+    const path = require('path');
+    
+    console.log(`Sending child item events for folder: ${folderPath}, children count: ${folderItem.items.length}`);
+    
+    folderItem.items.forEach(childItem => {
+      const childPath = path.join(folderPath, childItem.name);
+      
+      if (childItem.type === 'folder') {
+        // Send addDir for child folder
+        const directory = {
+          meta: {
+            collectionUid,
+            pathname: childPath,
+            name: childItem.name,
+            uid: childItem.uid
+          },
+          data: childItem
+        };
+        
+        console.log(`Sending addDir for child folder: ${childPath}`);
+        this.mainWindow.webContents.send('main:collection-tree-updated', 'addDir', directory);
+        
+        // Recursively send events for grandchildren
+        if (childItem.items && childItem.items.length > 0) {
+          this.sendChildItemEvents(collectionUid, collectionPath, childItem, childPath);
+        }
+      } else {
+        // Send addFile for child request
+        const requestFile = {
+          meta: {
+            collectionUid,
+            pathname: `${childPath}.yml`,
+            name: `${childItem.name}.yml`,
+            uid: childItem.uid
+          },
+          data: childItem
+        };
+        
+        console.log(`Sending addFile for child request: ${childPath}.yml`);
+        hydrateRequestWithUuid(requestFile.data, requestFile.meta.pathname);
+        this.mainWindow.webContents.send('main:collection-tree-updated', 'addFile', requestFile);
+      }
+    });
+  }
+}
+
+// Global instance
+const virtualFS = new OpenCollectionVirtualFS();
+
 const MAX_FILE_SIZE = 2.5 * 1024 * 1024;
 
 const environmentSecretsStore = new EnvironmentSecretsStore();
@@ -97,6 +679,18 @@ const isCollectionRootBruFile = (pathname, collectionPath) => {
   }
   
   return isFileTypeCompatible(basename, collectionFiletype);
+};
+
+const isOpenCollectionFile = (pathname, collectionPath) => {
+  const dirname = path.dirname(pathname);
+  const basename = path.basename(pathname);
+  
+  if (dirname !== collectionPath) {
+    return false;
+  }
+  
+  const collectionFiletype = getCollectionFiletype(collectionPath);
+  return collectionFiletype === 'opencollection' && basename === 'collection.yml';
 };
 
 const envHasSecrets = (environment = {}) => {
@@ -287,6 +881,103 @@ const add = async (win, pathname, collectionUid, collectionPath, useWorkerThread
 
   if (isBruEnvironmentConfig(pathname, collectionPath)) {
     return addEnvironmentFile(win, pathname, collectionUid, collectionPath);
+  }
+
+  if (isOpenCollectionFile(pathname, collectionPath)) {
+    try {
+      // Load the opencollection and generate virtual files
+      const collection = virtualFS.loadCollection(collectionUid, collectionPath);
+      if (collection) {
+        const virtualFiles = virtualFS.getVirtualFiles(collectionUid);
+        
+        // Send collection root file - data should contain only root properties for Redux
+        const collectionFile = {
+          meta: {
+            collectionUid,
+            pathname,
+            name: path.basename(pathname),
+            collectionRoot: true
+          },
+          data: {
+            // Only send root properties - Redux will set collection.root = file.data
+            request: {
+              auth: collection.root?.request?.auth || collection.auth || { mode: 'inherit' },
+              headers: collection.root?.request?.headers || collection.headers || [],
+              vars: collection.root?.request?.vars || collection.vars || {},
+              script: collection.root?.request?.script || collection.script || {},
+              tests: collection.root?.request?.tests || collection.tests || ''
+            },
+            docs: collection.root?.docs || collection.docs || ''
+          }
+        };
+        
+        hydrateBruCollectionFileWithUuid(collectionFile.data);
+        win.webContents.send('main:collection-tree-updated', 'addFile', collectionFile);
+        
+        // Send virtual files as if they were real files
+        virtualFiles.forEach(vFile => {
+          const virtualPath = path.join(collectionPath, vFile.path);
+          
+          if (vFile.type === 'request') {
+            const requestFile = {
+              meta: {
+                collectionUid,
+                pathname: virtualPath,
+                name: `${vFile.name}.yml`
+              },
+              data: vFile.data
+            };
+            
+            hydrateRequestWithUuid(requestFile.data, virtualPath);
+            win.webContents.send('main:collection-tree-updated', 'addFile', requestFile);
+          } else if (vFile.type === 'environment') {
+            const envFile = {
+              meta: {
+                collectionUid,
+                pathname: virtualPath,
+                name: `${vFile.name}.yml`
+              },
+              data: { ...vFile.data }
+            };
+            
+            // Add UID for the environment (similar to regular environment files)
+            envFile.data.uid = getRequestUid(virtualPath);
+            
+            // Add UIDs to variables
+            _.each(_.get(envFile, 'data.variables', []), (variable) => (variable.uid = uuid()));
+            
+            // Hydrate environment variables with secrets
+            if (envHasSecrets(envFile.data)) {
+              const envSecrets = environmentSecretsStore.getEnvSecrets(collectionPath, envFile.data);
+              _.each(envSecrets, (secret) => {
+                const variable = _.find(envFile.data.variables, (v) => v.name === secret.name);
+                if (variable && secret.value) {
+                  const decryptionResult = decryptStringSafe(secret.value);
+                  variable.value = decryptionResult.value;
+                }
+              });
+            }
+            
+            win.webContents.send('main:collection-tree-updated', 'addEnvironmentFile', envFile);
+          } else if (vFile.type === 'folder') {
+            const directory = {
+              meta: {
+                collectionUid,
+                pathname: virtualPath,
+                name: vFile.name,
+                uid: vFile.data.uid || uuid()
+              }
+            };
+            
+            win.webContents.send('main:collection-tree-updated', 'addDir', directory);
+          }
+        });
+      }
+      return;
+    } catch (err) {
+      console.error(err);
+      return;
+    }
   }
 
   if (isCollectionRootBruFile(pathname, collectionPath)) {
@@ -520,6 +1211,51 @@ const change = async (win, pathname, collectionUid, collectionPath) => {
 
   if (isBruEnvironmentConfig(pathname, collectionPath)) {
     return changeEnvironmentFile(win, pathname, collectionUid, collectionPath);
+  }
+
+  if (isOpenCollectionFile(pathname, collectionPath)) {
+    try {
+      // Reload the opencollection and update virtual files
+      const collection = virtualFS.loadCollection(collectionUid, collectionPath);
+      if (collection) {
+        // Send collection root file update - data should contain only root properties for Redux
+        const collectionFile = {
+          meta: {
+            collectionUid,
+            pathname,
+            name: path.basename(pathname),
+            collectionRoot: true
+          },
+          data: {
+            // Only send root properties - Redux will set collection.root = file.data
+            request: {
+              auth: collection.root?.request?.auth || collection.auth || { mode: 'inherit' },
+              headers: collection.root?.request?.headers || collection.headers || [],
+              vars: collection.root?.request?.vars || collection.vars || {},
+              script: collection.root?.request?.script || collection.script || {},
+              tests: collection.root?.request?.tests || collection.tests || ''
+            },
+            docs: collection.root?.docs || collection.docs || '',
+            // Add essential collection properties for Redux
+            uid: collection.uid,
+            name: collection.name,
+            type: collection.type || 'collection',
+            version: collection.version || '1'
+          }
+        };
+        
+        hydrateBruCollectionFileWithUuid(collectionFile.data);
+        win.webContents.send('main:collection-tree-updated', 'change', collectionFile);
+        
+        // For opencollection changes, we need to be more conservative about sending events
+        // Only send change events when absolutely necessary to avoid UI rebuilds that lose structure
+        console.log('OpenCollection file changed - collection reloaded but not sending individual item change events');
+      }
+      return;
+    } catch (err) {
+      console.error(err);
+      return;
+    }
   }
 
   if (isCollectionRootBruFile(pathname, collectionPath)) {
@@ -759,6 +1495,9 @@ class CollectionWatcher {
       this.watchers[watchPath].close();
     }
 
+    // Set main window reference for virtual filesystem
+    virtualFS.setMainWindow(win);
+
     this.initializeLoadingState(collectionUid);
     
     this.startCollectionDiscovery(win, collectionUid);
@@ -872,3 +1611,4 @@ class CollectionWatcher {
 const collectionWatcher = new CollectionWatcher();
 
 module.exports = collectionWatcher;
+module.exports.virtualFS = virtualFS;

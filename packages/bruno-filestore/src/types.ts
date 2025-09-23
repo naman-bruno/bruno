@@ -1,9 +1,9 @@
 export interface ParseOptions {
-  format?: 'bru' | 'yaml';
+  format?: 'bru' | 'yaml' | 'opencollection';
 }
 
 export interface StringifyOptions {
-  format?: 'bru' | 'yaml';
+  format?: 'bru' | 'yaml' | 'opencollection';
 }
 
 export interface RequestBody {
