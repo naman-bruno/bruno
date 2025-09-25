@@ -4,10 +4,11 @@ import { IconX, IconFile, IconCode } from '@tabler/icons';
 import CodeEditor from 'components/CodeEditor';
 import { get } from 'lodash';
 import StyledWrapper from './StyledWrapper';
+import { useTheme } from 'providers/Theme/index';
 
 const OperationDetailsPanel = ({ operation, onClose, collections }) => {
   const preferences = useSelector(state => state.app.preferences);
-  const { displayedTheme } = useSelector(state => state.app);
+  const { displayedTheme } = useTheme();
 
   const contentType = operation.details?.contentType || 'text';
   const isBruFile = contentType === 'bru';

@@ -1,20 +1,6 @@
 import React from 'react';
-import {
-  IconEye,
-  IconEdit,
-} from '@tabler/icons';
 
 const OperationRow = ({ operation, isSelected, onClick }) => {
-  const getOperationIcon = operationType => {
-    switch (operationType) {
-      case 'read':
-        return <IconEye size={14} className="operation-icon read" />;
-      case 'write':
-        return <IconEdit size={14} className="operation-icon write" />;
-      default:
-        return <IconEye size={14} className="operation-icon" />;
-    }
-  };
 
   const formatTime = timestamp => {
     const date = new Date(timestamp);
@@ -29,14 +15,6 @@ const OperationRow = ({ operation, isSelected, onClick }) => {
 
   const getFileName = filepath => {
     return filepath.split('/').pop() || filepath;
-  };
-
-  const getRelativePath = filepath => {
-    const parts = filepath.split('/');
-    if (parts.length > 3) {
-      return `.../${parts.slice(-2).join('/')}`;
-    }
-    return filepath;
   };
 
   const getFileSize = details => {
@@ -55,9 +33,6 @@ const OperationRow = ({ operation, isSelected, onClick }) => {
       className={`operation-row ${isSelected ? 'selected' : ''}`}
       onClick={() => onClick(operation)}
     >
-      <div className="operation-icon">
-        {getOperationIcon(operation.operation)}
-      </div>
 
       <div className="operation-type">
         <span className={`operation-badge ${operation.operation}`}>{operation.operation}</span>
@@ -69,7 +44,7 @@ const OperationRow = ({ operation, isSelected, onClick }) => {
 
       <div className="operation-path">
         <span className="file-path" title={operation.filepath}>
-          {getRelativePath(operation.filepath)}
+          {operation.filepath}
         </span>
       </div>
 
@@ -97,7 +72,6 @@ const OperationsTab = ({ operations, filters, onFilterToggle, onToggleAll, onCle
         ) : (
           <div className="operations-container">
             <div className="operations-header">
-              <div></div>
               <div>Type</div>
               <div>File</div>
               <div>Path</div>

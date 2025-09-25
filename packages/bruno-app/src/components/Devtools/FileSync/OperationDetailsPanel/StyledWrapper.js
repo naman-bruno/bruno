@@ -75,7 +75,6 @@ const StyledWrapper = styled.div`
     word-break: break-all;
 
     &.operation-type {
-      padding: 2px 6px;
       border-radius: 3px;
       font-size: 10px;
       font-weight: 600;

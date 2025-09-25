@@ -30,12 +30,6 @@ const formatTime = timestamp => {
   });
 };
 
-const ErrorIcon = React.memo(({ type }) => {
-  const ErrorIconComponent = ERROR_TYPES[type]?.icon || IconBug;
-  const className = ERROR_TYPES[type]?.className || '';
-  return <ErrorIconComponent className={`error-icon ${className}`} size={16} strokeWidth={1.5} />;
-});
-
 const ErrorRow = React.memo(({ error, collections, isSelected, onErrorSelect }) => {
   const errorData = useMemo(() => {
     const type = getErrorType(error.error);
@@ -62,9 +56,6 @@ const ErrorRow = React.memo(({ error, collections, isSelected, onErrorSelect }) 
       className={`error-row ${isSelected ? 'selected' : ''}`}
       onClick={() => onErrorSelect(error)}
     >
-      <div className="error-icon-cell">
-        <ErrorIcon type={errorData.type} />
-      </div>
       <div className="error-type-cell">
         <span className={`error-badge ${errorData.type}`}>{errorData.type}</span>
       </div>
@@ -110,7 +101,6 @@ const ErrorTab = ({ parsingErrors, errorFilters, selectedError, onErrorSelect, c
   return (
     <div className="errors-container">
       <div className="errors-header">
-        <div className="error-icon-cell">Type</div>
         <div className="error-type-cell">Category</div>
         <div className="error-file-cell">File</div>
         <div className="error-message-cell">Message</div>

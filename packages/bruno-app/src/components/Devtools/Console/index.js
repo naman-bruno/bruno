@@ -354,6 +354,22 @@ const Console = () => {
     return counts;
   }, {});
 
+  // FileSync counts
+  const operationCounts = fileSyncState.fileOperations.reduce((counts, operation) => {
+    counts[operation.operation] = (counts[operation.operation] || 0) + 1;
+    return counts;
+  }, {});
+
+  const eventCounts = fileSyncState.watcherEvents.reduce((counts, event) => {
+    counts[event.event] = (counts[event.event] || 0) + 1;
+    return counts;
+  }, {});
+
+  const errorCounts = fileSyncState.parsingErrors.reduce((counts, error) => {
+    counts[error.type] = (counts[error.type] || 0) + 1;
+    return counts;
+  }, {});
+
   const handleFilterToggle = (filterType, enabled) => {
     dispatch(updateFilter({ filterType, enabled }));
   };
@@ -502,6 +518,7 @@ const Console = () => {
               <div className="filter-controls">
                 <OperationFilterDropdown
                   filters={fileSyncState.operationFilters}
+                  counts={operationCounts}
                   onFilterToggle={handleOperationFilterToggle}
                   onToggleAll={handleToggleAllOperationFilters}
                 />
@@ -523,6 +540,7 @@ const Console = () => {
               <div className="filter-controls">
                 <EventFilterDropdown
                   filters={fileSyncState.eventFilters}
+                  counts={eventCounts}
                   onFilterToggle={handleEventFilterToggle}
                   onToggleAll={handleToggleAllEventFilters}
                 />
@@ -544,6 +562,7 @@ const Console = () => {
               <div className="filter-controls">
                 <ErrorFilterDropdown
                   filters={fileSyncState.errorFilters}
+                  counts={errorCounts}
                   onFilterToggle={handleErrorFilterToggle}
                   onToggleAll={handleToggleAllErrorFilters}
                 />

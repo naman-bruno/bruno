@@ -627,12 +627,10 @@ const StyledWrapper = styled.div`
   }
 
   .operation-type {
-    padding: 2px 6px;
     border-radius: 10px;
     font-size: 10px;
     font-weight: 600;
     text-transform: uppercase;
-    min-width: 50px;
 
     &.add {
       background: #10b981;
@@ -730,7 +728,7 @@ const StyledWrapper = styled.div`
 
   .operations-header {
     display: grid;
-    grid-template-columns: 40px 80px 150px 1fr 80px 100px;
+    grid-template-columns: 80px 150px 1fr 80px 100px;
     gap: 12px;
     padding: 8px 16px;
     background: ${props => props.theme.console.headerBg};
@@ -752,7 +750,7 @@ const StyledWrapper = styled.div`
 
   .operation-row {
     display: grid;
-    grid-template-columns: 40px 80px 150px 1fr 80px 100px;
+    grid-template-columns: 80px 150px 1fr 80px 100px;
     gap: 12px;
     padding: 6px 16px;
     border-bottom: 1px solid ${props => props.theme.console.border};
@@ -796,6 +794,26 @@ const StyledWrapper = styled.div`
 
     &.write {
       background: #f97316;
+    }
+
+    &.add {
+      background: #10b981;
+    }
+
+    &.change {
+      background: #3b82f6;
+    }
+
+    &.unlink {
+      background: #ef4444;
+    }
+
+    &.addDir {
+      background: #a855f7;
+    }
+
+    &.unlinkDir {
+      background: #ef4444;
     }
   }
 
@@ -845,7 +863,7 @@ const StyledWrapper = styled.div`
 
   .errors-header {
     display: grid;
-    grid-template-columns: 40px 80px 150px 2fr 120px 100px;
+    grid-template-columns: 80px 150px 2fr 120px 100px;
     gap: 12px;
     padding: 8px 16px;
     background: ${props => props.theme.console.headerBg};
@@ -867,7 +885,7 @@ const StyledWrapper = styled.div`
 
   .error-row {
     display: grid;
-    grid-template-columns: 40px 80px 150px 2fr 120px 100px;
+    grid-template-columns: 80px 150px 2fr 120px 100px;
     gap: 12px;
     padding: 6px 16px;
     border-bottom: 1px solid ${props => props.theme.console.border};
@@ -1007,15 +1025,19 @@ const StyledWrapper = styled.div`
     }
   }
 
-  /* Events Table - keep existing simple table style */
-  .events-table {
+  /* Events Container - Network style similar to operations */
+  .events-container {
     display: flex;
     flex-direction: column;
     height: 100%;
+    overflow: hidden;
+    min-height: 0;
   }
 
   .events-header {
-    display: flex;
+    display: grid;
+    grid-template-columns: 80px 150px 1fr 100px;
+    gap: 12px;
     padding: 8px 16px;
     background: ${props => props.theme.console.headerBg};
     border-bottom: 1px solid ${props => props.theme.console.border};
@@ -1027,97 +1049,66 @@ const StyledWrapper = styled.div`
     flex-shrink: 0;
   }
 
-  .events-body {
+  .events-list {
     flex: 1;
     overflow-y: auto;
+    overflow-x: hidden;
+    min-height: 0;
   }
 
   .event-row {
-    display: flex;
-    padding: 6px 12px;
+    display: grid;
+    grid-template-columns: 80px 150px 1fr 100px;
+    gap: 12px;
+    padding: 6px 16px;
     border-bottom: 1px solid ${props => props.theme.console.border};
-    cursor: pointer;
-    transition: background-color 0.15s ease;
+    font-size: 12px;
+    align-items: center;
 
     &:hover {
-      background: ${props => props.theme.console.headerBg};
+      background: ${props => props.theme.console.logHoverBg};
     }
-
-    &.selected {
-      background: rgba(59, 130, 246, 0.1);
-      border-color: rgba(59, 130, 246, 0.2);
-    }
-  }
-
-  .event-cell {
-    display: flex;
-    align-items: center;
-    font-size: 12px;
-    color: ${props => props.theme.console.textColor};
-    overflow: hidden;
-  }
-
-  .event-icon-cell {
-    width: 24px;
-    justify-content: center;
-    flex-shrink: 0;
   }
 
   .event-type-cell {
-    width: 80px;
-    flex-shrink: 0;
+    display: flex;
+    align-items: center;
   }
 
   .event-file-cell {
-    width: 150px;
-    flex-shrink: 0;
+    .file-name {
+      font-weight: 500;
+      color: ${props => props.theme.console.messageColor};
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
   }
 
   .event-path-cell {
-    flex: 1;
-    min-width: 0;
+    .file-path {
+      color: ${props => props.theme.console.textMuted};
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-family: monospace;
+      font-size: 11px;
+    }
   }
 
   .event-time-cell {
-    width: 80px;
-    flex-shrink: 0;
-    justify-content: flex-end;
-    font-family: monospace;
+    color: ${props => props.theme.console.textColor};
     font-size: 11px;
-  }
+    font-family: monospace;
 
-  .event-type {
-    padding: 2px 6px;
-    border-radius: 3px;
-    font-size: 10px;
-    font-weight: 600;
-    text-transform: uppercase;
-
-    &.add {
-      background: rgba(34, 197, 94, 0.1);
-      color: #22c55e;
-    }
-
-    &.change {
-      background: rgba(59, 130, 246, 0.1);
-      color: #3b82f6;
-    }
-
-    &.unlink {
-      background: rgba(239, 68, 68, 0.1);
-      color: #ef4444;
-    }
-
-    &.addDir {
-      background: rgba(168, 85, 247, 0.1);
-      color: #a855f7;
-    }
-
-    &.unlinkDir {
-      background: rgba(239, 68, 68, 0.1);
-      color: #ef4444;
+    &.text-right {
+      text-align: right;
     }
   }
+
+
+
+
 
   .file-name {
     font-weight: 500;
@@ -1216,7 +1207,6 @@ const StyledWrapper = styled.div`
   .operation-type,
   .error-type {
     font-size: 9px;
-    padding: 1px 4px;
     border-radius: 8px;
     color: white;
     text-transform: uppercase;

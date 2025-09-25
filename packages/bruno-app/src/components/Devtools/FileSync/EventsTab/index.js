@@ -7,24 +7,7 @@ import {
   IconFolderMinus,
 } from '@tabler/icons';
 
-const EventRow = ({ event, isSelected, onClick }) => {
-  const getEventIcon = eventType => {
-    switch (eventType) {
-      case 'add':
-        return <IconPlus size={14} className="event-icon add" />;
-      case 'change':
-        return <IconEdit size={14} className="event-icon change" />;
-      case 'unlink':
-        return <IconTrash size={14} className="event-icon unlink" />;
-      case 'addDir':
-        return <IconFolder size={14} className="event-icon addDir" />;
-      case 'unlinkDir':
-        return <IconFolderMinus size={14} className="event-icon unlinkDir" />;
-      default:
-        return <IconEdit size={14} className="event-icon" />;
-    }
-  };
-
+const EventRow = ({ event }) => {
   const formatTime = timestamp => {
     const date = new Date(timestamp);
     return date.toLocaleTimeString('en-US', {
@@ -49,32 +32,29 @@ const EventRow = ({ event, isSelected, onClick }) => {
   };
 
   return (
-    <div
-      className={`event-row ${isSelected ? 'selected' : ''}`}
-      onClick={() => onClick(event)}
-    >
-      <div className="event-cell event-icon-cell">
-        {getEventIcon(event.event)}
+    <div className="event-row">
+      <div className="event-type-cell">
+        <span className={`operation-badge ${event.event}`}>{event.event}</span>
       </div>
-      <div className="event-cell event-type-cell">
-        <span className={`event-type ${event.event}`}>{event.event}</span>
-      </div>
-      <div className="event-cell event-file-cell">
+
+      <div className="event-file-cell">
         <span className="file-name">{getFileName(event.filepath)}</span>
       </div>
-      <div className="event-cell event-path-cell">
+
+      <div className="event-path-cell">
         <span className="file-path" title={event.filepath}>
-          {getRelativePath(event.filepath)}
+          {event.filepath}
         </span>
       </div>
-      <div className="event-cell event-time-cell">
+
+      <div className="event-time-cell text-right">
         {formatTime(event.timestamp)}
       </div>
     </div>
   );
 };
 
-const EventsTab = ({ events, filters, onFilterToggle, onToggleAll, onClearEvents, selectedEvent, onEventSelect }) => {
+const EventsTab = ({ events, filters }) => {
   const filteredEvents = events.filter(event => filters[event.event]);
 
   return (
@@ -85,21 +65,18 @@ const EventsTab = ({ events, filters, onFilterToggle, onToggleAll, onClearEvents
             <p>No events to display</p>
           </div>
         ) : (
-          <div className="events-table">
+          <div className="events-container">
             <div className="events-header">
-              <div className="event-cell event-icon-cell"></div>
-              <div className="event-cell event-type-cell">Type</div>
-              <div className="event-cell event-file-cell">File</div>
-              <div className="event-cell event-path-cell">Path</div>
-              <div className="event-cell event-time-cell">Time</div>
+              <div>Type</div>
+              <div>File</div>
+              <div>Path</div>
+              <div className="text-right">Time</div>
             </div>
-            <div className="events-body">
+            <div className="events-list">
               {filteredEvents.map((event, index) => (
                 <EventRow
                   key={event.id}
                   event={event}
-                  isSelected={selectedEvent?.id === event.id}
-                  onClick={onEventSelect}
                 />
               ))}
             </div>
