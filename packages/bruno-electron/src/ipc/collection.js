@@ -301,10 +301,12 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
             details: {
               trigger: 'save_request',
               content: content,
+              parsedData: request, // Include the original request object as parsed data
               contentType: hasBruExtension(pathname) ? 'bru' : 'text',
               size: Buffer.byteLength(content, 'utf8'),
             },
             timestamp: new Date().toISOString(),
+            id: require('../utils/common').uuid(),
           };
           mainWindow.webContents.send('main:filesync-operation', writeOperation);
         }
@@ -317,6 +319,8 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
   // save multiple requests
   ipcMain.handle('renderer:save-multiple-requests', async (event, requestsToSave) => {
     try {
+      const mainWindow = event.sender.getOwnerBrowserWindow();
+
       for (let r of requestsToSave) {
         const request = r.item;
         const pathname = r.pathname;
@@ -327,6 +331,28 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
 
         const content = await stringifyRequestViaWorker(request);
         await writeFile(pathname, content);
+
+        if (mainWindow && mainWindow.webContents) {
+          let collectionUid = request.collectionUid || collectionWatcher.findCollectionUidByPath(pathname);
+
+          if (collectionUid) {
+            const writeOperation = {
+              operation: 'write',
+              filepath: pathname,
+              collectionUid: collectionUid,
+              details: {
+                trigger: 'save_multiple_requests',
+                content: content,
+                parsedData: request,
+                contentType: hasBruExtension(pathname) ? 'bru' : 'text',
+                size: Buffer.byteLength(content, 'utf8'),
+              },
+              timestamp: new Date().toISOString(),
+              id: require('../utils/common').uuid(),
+            };
+            mainWindow.webContents.send('main:filesync-operation', writeOperation);
+          }
+        }
       }
     } catch (error) {
       return Promise.reject(error);

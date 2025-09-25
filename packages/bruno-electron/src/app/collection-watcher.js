@@ -38,6 +38,7 @@ const emitFileOperation = (win, operation, pathname, collectionUid, details = {}
       size: fileStats ? fileStats.size : undefined,
     },
     timestamp: new Date().toISOString(),
+    id: uuid(), // Add unique ID for operations
   };
 
   win.webContents.send('main:filesync-operation', operationData);
@@ -225,9 +226,26 @@ const add = async (win, pathname, collectionUid, collectionPath, useWorkerThread
 
   // Emit read operation for Operations tab (file is being read)
   let fileContent = null;
+  let parsedData = null;
   try {
     if (fs.existsSync(pathname)) {
       fileContent = fs.readFileSync(pathname, 'utf8');
+
+      // If it's a BRU file, also parse it
+      if (hasBruExtension(pathname)) {
+        try {
+          if (isCollectionRootBruFile(pathname, collectionPath) || path.basename(pathname) === 'folder.bru') {
+            parsedData = await parseCollection(fileContent);
+          } else if (isBruEnvironmentConfig(pathname, collectionPath)) {
+            parsedData = await parseEnvironment(fileContent);
+          } else {
+            parsedData = await parseRequest(fileContent);
+          }
+        } catch (parseErr) {
+          // Parsing failed, but we still have the raw content
+          console.log('Parsing failed for file operation:', parseErr.message);
+        }
+      }
     }
   } catch (err) {
     // File content read failed, continue without content
@@ -236,6 +254,7 @@ const add = async (win, pathname, collectionUid, collectionPath, useWorkerThread
   emitFileOperation(win, 'read', pathname, collectionUid, {
     trigger: 'watcher_add',
     content: fileContent,
+    parsedData: parsedData,
     contentType: hasBruExtension(pathname) ? 'bru' : 'text',
   });
 
@@ -453,9 +472,26 @@ const change = async (win, pathname, collectionUid, collectionPath) => {
 
   // Emit read operation for Operations tab (file is being read)
   let fileContent = null;
+  let parsedData = null;
   try {
     if (fs.existsSync(pathname)) {
       fileContent = fs.readFileSync(pathname, 'utf8');
+
+      // If it's a BRU file, also parse it
+      if (hasBruExtension(pathname)) {
+        try {
+          if (isCollectionRootBruFile(pathname, collectionPath) || path.basename(pathname) === 'folder.bru') {
+            parsedData = await parseCollection(fileContent);
+          } else if (isBruEnvironmentConfig(pathname, collectionPath)) {
+            parsedData = await parseEnvironment(fileContent);
+          } else {
+            parsedData = await parseRequest(fileContent);
+          }
+        } catch (parseErr) {
+          // Parsing failed, but we still have the raw content
+          console.log('Parsing failed for file operation:', parseErr.message);
+        }
+      }
     }
   } catch (err) {
     // File content read failed, continue without content
@@ -464,6 +500,7 @@ const change = async (win, pathname, collectionUid, collectionPath) => {
   emitFileOperation(win, 'read', pathname, collectionUid, {
     trigger: 'watcher_change',
     content: fileContent,
+    parsedData: parsedData,
     contentType: hasBruExtension(pathname) ? 'bru' : 'text',
   });
 

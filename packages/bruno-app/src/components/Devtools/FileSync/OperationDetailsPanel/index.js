@@ -34,62 +34,31 @@ const OperationDetailsPanel = ({ operation, onClose, collections }) => {
   const getFileContent = () => {
     const hasContent = operation.details?.content;
     const actualContent = operation.details?.content || '';
+    const parsedData = operation.details?.parsedData;
 
     // If we have actual file content, show it
     if (hasContent) {
-      let jsonContent = actualContent;
-
-      // For BRU files, try to parse and convert to JSON
-      if (isBruFile) {
+      // For BRU files, use parsed data if available
+      if (isBruFile && parsedData) {
         try {
-          // Simple BRU to JSON conversion for display
-          // This is a basic parser for visualization
-          const lines = actualContent.split('\n');
-          const bruData = {};
-          let currentSection = null;
-          let currentContent = [];
-
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (trimmed.startsWith('meta {')) {
-              currentSection = 'meta';
-              currentContent = [];
-            } else if (trimmed.startsWith('get ') || trimmed.startsWith('post ')
-              || trimmed.startsWith('put ') || trimmed.startsWith('delete ')
-              || trimmed.startsWith('patch ') || trimmed.startsWith('head ')
-              || trimmed.startsWith('options ')) {
-              const parts = trimmed.split(' ');
-              bruData.method = parts[0].toUpperCase();
-              bruData.url = parts.slice(1).join(' ');
-            } else if (trimmed.startsWith('headers {')) {
-              currentSection = 'headers';
-              currentContent = [];
-            } else if (trimmed.startsWith('body {')) {
-              currentSection = 'body';
-              currentContent = [];
-            } else if (trimmed === '}' && currentSection) {
-              if (currentSection === 'headers') {
-                bruData.headers = currentContent.join('\n');
-              } else if (currentSection === 'body') {
-                bruData.body = currentContent.join('\n');
-              } else if (currentSection === 'meta') {
-                bruData.meta = currentContent.join('\n');
-              }
-              currentSection = null;
-              currentContent = [];
-            } else if (currentSection && trimmed) {
-              currentContent.push(line);
-            }
-          }
-
-          jsonContent = JSON.stringify(bruData, null, 2);
+          const jsonContent = JSON.stringify(parsedData, null, 2);
+          return {
+            json: jsonContent,
+            bru: actualContent,
+            content: actualContent,
+          };
         } catch (err) {
-          // If parsing fails, show as plain text
-          jsonContent = `// BRU file content (parsing failed):\n${actualContent}`;
+          // If JSON stringification fails, fall back to raw content
+          return {
+            json: `// Failed to display parsed data as JSON:\n${actualContent}`,
+            bru: actualContent,
+            content: actualContent,
+          };
         }
-
+      } else if (isBruFile) {
+        // BRU file without parsed data - show raw content
         return {
-          json: jsonContent,
+          json: `// Parsed data not available:\n${actualContent}`,
           bru: actualContent,
           content: actualContent,
         };
