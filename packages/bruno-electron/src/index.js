@@ -24,6 +24,7 @@ if (isDev && process.env.ELECTRON_USER_DATA_PATH) {
 const menuTemplate = require('./app/menu-template');
 const { openCollection } = require('./app/collections');
 const LastOpenedCollections = require('./store/last-opened-collections');
+const SystemMonitor = require('./app/system-monitor');
 const registerNetworkIpc = require('./ipc/network');
 const registerCollectionsIpc = require('./ipc/collection');
 const registerFilesystemIpc = require('./ipc/filesystem');
@@ -110,6 +111,9 @@ app.on('ready', async () => {
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
+
+    const systemMonitor = new SystemMonitor();
+    systemMonitor.start(mainWindow);
   });
   const url = isDev
     ? 'http://localhost:3000'
