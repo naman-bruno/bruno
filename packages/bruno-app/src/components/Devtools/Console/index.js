@@ -25,6 +25,7 @@ import {
   toggleAllNetworkFilters
 } from 'providers/ReduxStore/slices/logs';
 import NetworkTab from './NetworkTab';
+import TerminalTab from './TerminalTab';
 import RequestDetailsPanel from './RequestDetailsPanel';
 // import DebugTab from './DebugTab';
 import ErrorDetailsPanel from './ErrorDetailsPanel';
@@ -384,6 +385,8 @@ const Console = () => {
         );
       case 'network':
         return <NetworkTab />;
+      case 'terminal':
+        return <TerminalTab />;
       // case 'debug':
       //   return <DebugTab />;
       default:
@@ -437,6 +440,8 @@ const Console = () => {
             </div>
           </div>
         );
+      case 'terminal':
+        return null; // No controls needed for terminal
       // case 'debug':
       //   return (
       //     <div className="tab-controls">
@@ -484,6 +489,14 @@ const Console = () => {
             <span>Network</span>
           </button>
           
+          <button
+            className={`console-tab ${activeTab === 'terminal' ? 'active' : ''}`}
+            onClick={() => handleTabChange('terminal')}
+          >
+            <IconTerminal2 size={16} strokeWidth={1.5} />
+            <span>Terminal</span>
+          </button>
+
           {/* <button 
             className={`console-tab ${activeTab === 'debug' ? 'active' : ''}`}
             onClick={() => handleTabChange('debug')}

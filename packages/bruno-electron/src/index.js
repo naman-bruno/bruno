@@ -41,12 +41,14 @@ const collectionWatcher = require('./app/collection-watcher');
 const { loadWindowState, saveBounds, saveMaximized } = require('./utils/window');
 const registerNotificationsIpc = require('./ipc/notifications');
 const registerGlobalEnvironmentsIpc = require('./ipc/global-environments');
+const TerminalManager = require('./ipc/terminal');
 const { safeParseJSON, safeStringifyJSON } = require('./utils/common');
 const { getDomainsWithCookies } = require('./utils/cookies');
 const { cookiesStore } = require('./store/cookies');
 const onboardUser = require('./app/onboarding');
 
 const lastOpenedCollections = new LastOpenedCollections();
+const terminalManager = new TerminalManager();
 
 // Reference: https://content-security-policy.com/
 const contentSecurityPolicy = [
@@ -157,6 +159,10 @@ app.on('ready', async () => {
   mainWindow.on('unmaximize', () => saveMaximized(false));
   mainWindow.on('close', (e) => {
     e.preventDefault();
+    // Clean up terminal sessions for this window
+    if (terminalManager) {
+      terminalManager.cleanup(mainWindow.webContents);
+    }
     ipcMain.emit('main:start-quit-flow');
   });
 
@@ -219,6 +225,11 @@ app.on('before-quit', () => {
     cookiesStore.saveCookieJar(true);
   } catch (err) {
     console.warn('Failed to flush cookies on quit', err);
+  }
+
+  // Clean up terminal sessions
+  if (terminalManager) {
+    terminalManager.killAll();
   }
 });
 
