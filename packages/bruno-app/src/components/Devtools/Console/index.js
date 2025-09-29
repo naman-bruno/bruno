@@ -12,7 +12,8 @@ import {
   IconCode,
   IconChevronDown,
   IconTerminal2,
-  IconNetwork
+  IconNetwork,
+  IconDashboard,
 } from '@tabler/icons';
 import { 
   closeConsole, 
@@ -24,11 +25,13 @@ import {
   updateNetworkFilter,
   toggleAllNetworkFilters
 } from 'providers/ReduxStore/slices/logs';
+
 import NetworkTab from './NetworkTab';
 import TerminalTab from './TerminalTab';
 import RequestDetailsPanel from './RequestDetailsPanel';
 // import DebugTab from './DebugTab';
 import ErrorDetailsPanel from './ErrorDetailsPanel';
+import Performance from '../Performance';
 import StyledWrapper from './StyledWrapper';
 
 const LogIcon = ({ type }) => {
@@ -385,6 +388,8 @@ const Console = () => {
         );
       case 'network':
         return <NetworkTab />;
+      case 'performance':
+        return <Performance />;
       case 'terminal':
         return <TerminalTab />;
       // case 'debug':
@@ -489,6 +494,14 @@ const Console = () => {
             <span>Network</span>
           </button>
           
+          <button
+            className={`console-tab ${activeTab === 'performance' ? 'active' : ''}`}
+            onClick={() => handleTabChange('performance')}
+          >
+            <IconDashboard size={16} strokeWidth={1.5} />
+            <span>Performance</span>
+          </button>
+
           <button
             className={`console-tab ${activeTab === 'terminal' ? 'active' : ''}`}
             onClick={() => handleTabChange('terminal')}
