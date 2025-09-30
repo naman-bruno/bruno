@@ -46,7 +46,7 @@ const StyledWrapper = styled.div`
     }
   }
 
-    .system-resources {
+  .system-resources {
     margin-bottom: 16px;
 
     h2 {
@@ -114,6 +114,56 @@ const StyledWrapper = styled.div`
     &.stable {
       color: ${props => props.theme.console.buttonColor};
     }
+  }
+
+  .stats-grid {
+    display: grid;
+    gap: 16px;
+  }
+
+  .stats-section {
+    h3 {
+      margin: 0 0 8px 0;
+      font-size: 13px;
+      font-weight: 600;
+      color: ${(props) => props.theme.console.titleColor};
+    }
+  }
+
+  .stats-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 8px;
+  }
+
+  .stat-card {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    background: ${(props) => props.theme.console.headerBg};
+    border: 1px solid ${(props) => props.theme.console.border};
+    border-radius: 4px;
+  }
+
+  .stat-icon {
+    color: ${(props) => props.theme.console.titleColor};
+  }
+
+  .stat-content {
+    flex: 1;
+  }
+
+  .stat-value {
+    font-size: 16px;
+    font-weight: 600;
+    color: ${(props) => props.theme.console.titleColor};
+    margin-bottom: 1px;
+  }
+
+  .stat-label {
+    font-size: 11px;
+    color: ${(props) => props.theme.console.buttonColor};
   }
 `;
 

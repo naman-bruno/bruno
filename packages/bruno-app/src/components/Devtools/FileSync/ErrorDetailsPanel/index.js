@@ -1,40 +1,20 @@
 import React, { useState, useMemo } from 'react';
-import { IconX, IconBug, IconAlertTriangle, IconAlertCircle, IconCode } from '@tabler/icons';
+import { IconX, IconBug } from '@tabler/icons';
 import StyledWrapper from './StyledWrapper';
-
-const ERROR_TYPES = {
-  syntax: { icon: IconCode, className: 'syntax' },
-  parsing: { icon: IconAlertTriangle, className: 'parsing' },
-  runtime: { icon: IconAlertCircle, className: 'runtime' }
-};
 
 const ErrorDetailsPanel = ({ error, onClose, collections }) => {
   const [activeTab, setActiveTab] = useState('details');
 
   const errorData = useMemo(() => {
-    const getErrorType = (message) => {
-      if (message.toLowerCase().includes('syntax')) return 'syntax';
-      if (message.toLowerCase().includes('parse')) return 'parsing';
-      return 'runtime';
-    };
-
-    const type = getErrorType(error.error);
     const pathParts = error.filepath.split('/');
     const filename = pathParts[pathParts.length - 1];
     const collection = collections.find((c) => c.uid === error.collectionUid);
 
     return {
-      type,
       filename,
       collectionName: collection?.name || 'Unknown Collection'
     };
   }, [error, collections]);
-
-  const getErrorIcon = () => {
-    const ErrorIcon = ERROR_TYPES[errorData.type]?.icon || IconBug;
-    const className = ERROR_TYPES[errorData.type]?.className || '';
-    return <ErrorIcon className={`error-icon ${className}`} size={16} strokeWidth={1.5} />;
-  };
 
   const getTextContent = () => {
     if (activeTab === 'stack' && error.stack) return error.stack;
@@ -46,7 +26,7 @@ const ErrorDetailsPanel = ({ error, onClose, collections }) => {
       <div className="error-details-panel">
         <div className="panel-header">
           <div className="panel-title">
-            {getErrorIcon()}
+            <IconBug size={16} strokeWidth={1.5} />
             <span>Error Details</span>
           </div>
           <button className="close-btn" onClick={onClose}>
@@ -66,10 +46,6 @@ const ErrorDetailsPanel = ({ error, onClose, collections }) => {
           <div className="info-row">
             <span className="label">Collection:</span>
             <span className="value">{errorData.collectionName}</span>
-          </div>
-          <div className="info-row">
-            <span className="label">Type:</span>
-            <span className="value error-type">{errorData.type}</span>
           </div>
           <div className="info-row">
             <span className="label">Time:</span>

@@ -31,8 +31,6 @@ import {
   toggleAllOperationFilters,
   updateEventFilter,
   toggleAllEventFilters,
-  updateErrorFilter,
-  toggleAllErrorFilters,
   clearFileOperations,
   clearWatcherEvents,
   clearParsingErrors
@@ -43,7 +41,7 @@ import RequestDetailsPanel from './RequestDetailsPanel';
 import ErrorDetailsPanel from './ErrorDetailsPanel';
 import FileSync from '../FileSync';
 import Performance from '../Performance';
-import { OperationFilterDropdown, EventFilterDropdown, ErrorFilterDropdown } from '../FileSync/FilterDropdowns';
+import { OperationFilterDropdown, EventFilterDropdown } from '../FileSync/FilterDropdowns';
 import StyledWrapper from './StyledWrapper';
 
 const LogIcon = ({ type }) => {
@@ -365,11 +363,6 @@ const Console = () => {
     return counts;
   }, {});
 
-  const errorCounts = fileSyncState.parsingErrors.reduce((counts, error) => {
-    counts[error.type] = (counts[error.type] || 0) + 1;
-    return counts;
-  }, {});
-
   const handleFilterToggle = (filterType, enabled) => {
     dispatch(updateFilter({ filterType, enabled }));
   };
@@ -413,14 +406,6 @@ const Console = () => {
 
   const handleToggleAllEventFilters = (enabled) => {
     dispatch(toggleAllEventFilters(enabled));
-  };
-
-  const handleErrorFilterToggle = (filterType, enabled) => {
-    dispatch(updateErrorFilter({ filterType, enabled }));
-  };
-
-  const handleToggleAllErrorFilters = (enabled) => {
-    dispatch(toggleAllErrorFilters(enabled));
   };
 
   const handleClearOperations = () => {
@@ -559,14 +544,6 @@ const Console = () => {
         } else if (fileSyncState.activeTab === 'error') {
           return (
             <div className="tab-controls">
-              <div className="filter-controls">
-                <ErrorFilterDropdown
-                  filters={fileSyncState.errorFilters}
-                  counts={errorCounts}
-                  onFilterToggle={handleErrorFilterToggle}
-                  onToggleAll={handleToggleAllErrorFilters}
-                />
-              </div>
               <div className="action-controls">
                 <button
                   className="control-button"

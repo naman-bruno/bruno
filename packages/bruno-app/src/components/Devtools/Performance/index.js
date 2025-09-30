@@ -1,7 +1,7 @@
 import React from 'react';
 import { useSelector } from 'react-redux';
 import { IconCpu, IconDatabase, IconClock, IconServer, IconAlertTriangle, IconFile, IconFolder, IconActivity, IconChartLine } from '@tabler/icons';
-import StyledWrapper from '../FileSync/StyledWrapper';
+import StyledWrapper from './StyledWrapper';
 
 const formatBytes = (bytes) => {
   if (bytes === 0) return '0 Bytes';
@@ -107,12 +107,10 @@ const Performance = () => {
     systemResources
   } = useSelector((state) => state.fileSync);
 
-  const collections = useSelector((state) => state.collections.collections);
-
   return (
     <StyledWrapper>
-      <div className="overview-tab">
-        <div className="overview-content">
+      <div className="tab-content">
+        <div className="tab-content-area">
           <div className="system-resources">
             <h2>System Resources</h2>
             <div className="resource-cards">
@@ -147,7 +145,7 @@ const Performance = () => {
                 subtitle="Current PID"
                 color="default"
               />
-            </div>
+          </div>
           </div>
 
           <StatsGrid

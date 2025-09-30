@@ -243,7 +243,6 @@ const add = async (win, pathname, collectionUid, collectionPath, useWorkerThread
           }
         } catch (parseErr) {
           // Parsing failed, but we still have the raw content
-          console.log('Parsing failed for file operation:', parseErr.message);
         }
       }
     }
@@ -489,7 +488,6 @@ const change = async (win, pathname, collectionUid, collectionPath) => {
           }
         } catch (parseErr) {
           // Parsing failed, but we still have the raw content
-          console.log('Parsing failed for file operation:', parseErr.message);
         }
       }
     }

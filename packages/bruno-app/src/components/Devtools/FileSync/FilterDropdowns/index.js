@@ -107,7 +107,3 @@ export const OperationFilterDropdown = (props) => (
 export const EventFilterDropdown = (props) => (
   <FilterDropdown {...props} title="Filter by Event" />
 );
-
-export const ErrorFilterDropdown = (props) => (
-  <FilterDropdown {...props} title="Filter by Error" />
-);

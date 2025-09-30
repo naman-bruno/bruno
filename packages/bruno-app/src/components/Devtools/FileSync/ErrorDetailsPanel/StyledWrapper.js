@@ -27,18 +27,6 @@ const StyledWrapper = styled.div`
     font-size: 13px;
     font-weight: 500;
     color: ${(props) => props.theme.console.titleColor};
-
-    .error-icon {
-      &.syntax {
-        color: #f59e0b;
-      }
-      &.parsing {
-        color: #ef4444;
-      }
-      &.runtime {
-        color: #8b5cf6;
-      }
-    }
   }
 
   .close-btn {
@@ -81,21 +69,6 @@ const StyledWrapper = styled.div`
     .value {
       color: ${(props) => props.theme.console.textColor};
       word-break: break-all;
-      
-      &.error-type {
-        text-transform: capitalize;
-        font-weight: 500;
-        
-        &:contains('syntax') {
-          color: #f59e0b;
-        }
-        &:contains('parsing') {
-          color: #ef4444;
-        }
-        &:contains('runtime') {
-          color: #8b5cf6;
-        }
-      }
     }
   }
 

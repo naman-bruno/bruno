@@ -1,25 +1,7 @@
 import React, { useMemo } from 'react';
-import {
-  IconBug,
-  IconAlertTriangle,
-  IconAlertCircle,
-  IconCode
-} from '@tabler/icons';
-
-const ERROR_TYPES = {
-  syntax: { icon: IconCode, className: 'syntax' },
-  parsing: { icon: IconAlertTriangle, className: 'parsing' },
-  runtime: { icon: IconAlertCircle, className: 'runtime' }
-};
+import { IconBug } from '@tabler/icons';
 
 const MESSAGE_TRUNCATE_LENGTH = 60;
-
-const getErrorType = (message) => {
-  const lowerMessage = message.toLowerCase();
-  if (lowerMessage.includes('syntax')) return 'syntax';
-  if (lowerMessage.includes('parse')) return 'parsing';
-  return 'runtime';
-};
 
 const formatTime = (timestamp) => {
   return new Date(timestamp).toLocaleTimeString('en-US', {
@@ -32,7 +14,6 @@ const formatTime = (timestamp) => {
 
 const ErrorRow = React.memo(({ error, collections, isSelected, onErrorSelect }) => {
   const errorData = useMemo(() => {
-    const type = getErrorType(error.error);
     const pathParts = error.filepath.split('/');
     const filename = pathParts[pathParts.length - 1];
     const directory = pathParts.slice(0, -1).join('/');
@@ -42,7 +23,6 @@ const ErrorRow = React.memo(({ error, collections, isSelected, onErrorSelect }) 
       : error.error;
 
     return {
-      type,
       filename,
       directory,
       collectionName: collection?.name || 'Unknown Collection',
@@ -56,9 +36,6 @@ const ErrorRow = React.memo(({ error, collections, isSelected, onErrorSelect }) 
       className={`error-row ${isSelected ? 'selected' : ''}`}
       onClick={() => onErrorSelect(error)}
     >
-      <div className="error-type-cell">
-        <span className={`error-badge ${errorData.type}`}>{errorData.type}</span>
-      </div>
       <div className="error-file-cell">
         <div className="error-file">
           <span className="filename">{errorData.filename}</span>
@@ -80,15 +57,8 @@ const ErrorRow = React.memo(({ error, collections, isSelected, onErrorSelect }) 
   );
 });
 
-const ErrorTab = ({ parsingErrors, errorFilters, selectedError, onErrorSelect, collections }) => {
-  const filteredErrors = useMemo(() => {
-    return parsingErrors.filter((error) => {
-      const errorType = getErrorType(error.error);
-      return errorFilters[errorType] !== false;
-    });
-  }, [parsingErrors, errorFilters]);
-
-  if (filteredErrors.length === 0) {
+const ErrorTab = ({ parsingErrors, selectedError, onErrorSelect, collections }) => {
+  if (parsingErrors.length === 0) {
     return (
       <div className="errors-empty">
         <IconBug size={48} strokeWidth={1} />
@@ -101,14 +71,13 @@ const ErrorTab = ({ parsingErrors, errorFilters, selectedError, onErrorSelect, c
   return (
     <div className="errors-container">
       <div className="errors-header">
-        <div className="error-type-cell">Category</div>
         <div className="error-file-cell">File</div>
         <div className="error-message-cell">Message</div>
         <div className="error-collection-cell">Collection</div>
         <div className="error-time-cell">Time</div>
       </div>
       <div className="errors-list">
-        {filteredErrors.map((error) => (
+        {parsingErrors.map((error) => (
           <ErrorRow
             key={error.id}
             error={error}

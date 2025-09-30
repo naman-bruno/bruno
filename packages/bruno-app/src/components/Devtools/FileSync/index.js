@@ -10,8 +10,6 @@ import {
   toggleAllOperationFilters,
   updateEventFilter,
   toggleAllEventFilters,
-  updateErrorFilter,
-  toggleAllErrorFilters,
   setSelectedOperation,
   setSelectedEvent,
   setSelectedError
@@ -41,7 +39,6 @@ const FileSync = () => {
     parsingErrors,
     operationFilters,
     eventFilters,
-    errorFilters,
     activeTab,
     selectedOperation,
     selectedEvent,
@@ -68,8 +65,6 @@ const FileSync = () => {
   }), [dispatch]);
 
   const errorHandlers = useMemo(() => ({
-    onFilterToggle: (filterType, enabled) => dispatch(updateErrorFilter({ filterType, enabled })),
-    onToggleAll: (enabled) => dispatch(toggleAllErrorFilters(enabled)),
     onClear: () => dispatch(clearParsingErrors()),
     onSelect: (error) => dispatch(setSelectedError(error)),
     onClose: () => dispatch(setSelectedError(null))
@@ -99,7 +94,6 @@ const FileSync = () => {
         return (
           <ErrorTab
             parsingErrors={parsingErrors}
-            errorFilters={errorFilters}
             selectedError={selectedError}
             onErrorSelect={errorHandlers.onSelect}
             collections={collections}

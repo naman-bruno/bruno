@@ -39,11 +39,6 @@ const initialState = {
     read: true,
     write: true
   },
-  errorFilters: {
-    parsing: true,
-    syntax: true,
-    runtime: true
-  },
   activeTab: 'operations',
   selectedEvent: null,
   selectedOperation: null,
@@ -148,14 +143,6 @@ export const fileSyncSlice = createSlice({
       toggleAllFilters(state, action.payload, 'operationFilters');
     },
 
-    updateErrorFilter: (state, action) => {
-      updateFilters(state, action, 'errorFilters');
-    },
-
-    toggleAllErrorFilters: (state, action) => {
-      toggleAllFilters(state, action.payload, 'errorFilters');
-    },
-
     updateSystemResources: (state, action) => {
       state.systemResources = {
         ...state.systemResources,
@@ -201,8 +188,6 @@ export const {
   toggleAllEventFilters,
   updateOperationFilter,
   toggleAllOperationFilters,
-  updateErrorFilter,
-  toggleAllErrorFilters,
   updateSystemResources,
   setActiveTab,
   setSelectedEvent,

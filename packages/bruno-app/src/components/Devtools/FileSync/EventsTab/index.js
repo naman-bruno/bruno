@@ -1,11 +1,4 @@
 import React from 'react';
-import {
-  IconPlus,
-  IconEdit,
-  IconTrash,
-  IconFolder,
-  IconFolderMinus
-} from '@tabler/icons';
 
 const EventRow = ({ event }) => {
   const formatTime = (timestamp) => {
