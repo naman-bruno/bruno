@@ -193,13 +193,24 @@ const StyledWrapper = styled.div`
     border-radius: 4px;
     color: ${(props) => props.theme.console.buttonColor};
     cursor: pointer;
-    transition: all 0.2s ease;
     font-size: 12px;
+    transition: all 0.15s ease;
 
     &:hover {
       background: ${(props) => props.theme.console.buttonHoverBg};
-      color: ${(props) => props.theme.console.buttonHoverColor};
-      border-color: ${(props) => props.theme.console.border};
+      border-color: ${(props) => props.theme.console.checkboxColor};
+    }
+
+    &.active {
+      background: ${(props) => props.theme.console.checkboxColor};
+      color: white;
+      border-color: ${(props) => props.theme.console.checkboxColor};
+    }
+
+    &.partial {
+      background: #f59e0b;
+      color: white;
+      border-color: #f59e0b;
     }
 
     .filter-summary {
@@ -211,19 +222,16 @@ const StyledWrapper = styled.div`
 
   .filter-dropdown-menu {
     position: absolute;
-    top: calc(100% + 4px);
-    left: 0;
-    min-width: 200px;
-    max-width: 250px;
-    background: ${(props) => props.theme.console.dropdownBg};
-    border: 1px solid ${(props) => props.theme.console.border};
-    border-radius: 6px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    top: 100%;
     z-index: 1000;
-    overflow: hidden;
-    
+    min-width: 200px;
+    background: ${(props) => props.theme.console.contentBg};
+    border: 1px solid ${(props) => props.theme.console.border};
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    margin-top: 2px;
+
     &.right {
-      left: auto;
       right: 0;
     }
   }
@@ -233,7 +241,6 @@ const StyledWrapper = styled.div`
     align-items: center;
     justify-content: space-between;
     padding: 8px 12px;
-    background: ${(props) => props.theme.console.dropdownHeaderBg};
     border-bottom: 1px solid ${(props) => props.theme.console.border};
     font-size: 12px;
     font-weight: 500;
@@ -241,15 +248,15 @@ const StyledWrapper = styled.div`
   }
 
   .filter-toggle-all {
-    background: transparent;
+    background: none;
     border: none;
-    color: ${(props) => props.theme.console.buttonColor};
+    color: ${(props) => props.theme.console.checkboxColor};
     cursor: pointer;
     font-size: 11px;
     font-weight: 500;
     padding: 2px 4px;
     border-radius: 2px;
-    transition: all 0.2s ease;
+    transition: background-color 0.15s ease;
 
     &:hover {
       background: ${(props) => props.theme.console.buttonHoverBg};
@@ -258,6 +265,92 @@ const StyledWrapper = styled.div`
 
   .filter-dropdown-options {
     padding: 4px 0;
+  }
+
+  .filter-dropdown-body {
+    padding: 4px 0;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .filter-dropdown-item {
+    padding: 2px 0;
+  }
+
+  .filter-checkbox {
+    display: flex;
+    align-items: center;
+    padding: 6px 12px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background-color 0.15s ease;
+
+    &:hover {
+      background: ${(props) => props.theme.console.logHoverBg};
+    }
+
+    input {
+      display: none;
+    }
+
+    .filter-checkbox-indicator {
+      width: 14px;
+      height: 14px;
+      border: 1px solid ${(props) => props.theme.console.border};
+      border-radius: 2px;
+      margin-right: 8px;
+      position: relative;
+      flex-shrink: 0;
+
+      &::after {
+        content: '';
+        position: absolute;
+        left: 4px;
+        top: 1px;
+        width: 4px;
+        height: 7px;
+        border: solid white;
+        border-width: 0 2px 2px 0;
+        transform: rotate(45deg);
+        opacity: 0;
+      }
+    }
+
+    input:checked + .filter-checkbox-indicator {
+      background: ${(props) => props.theme.console.checkboxColor};
+      border-color: ${(props) => props.theme.console.checkboxColor};
+
+      &::after {
+        opacity: 1;
+      }
+    }
+
+    .filter-checkbox-content {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex: 1;
+    }
+
+    .filter-label {
+      color: ${(props) => props.theme.console.titleColor};
+      text-transform: capitalize;
+    }
+
+    .filter-count {
+      color: ${(props) => props.theme.console.buttonColor};
+      font-size: 11px;
+      margin-left: auto;
+    }
+  }
+
+  .filter-dropdown-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 999;
   }
 
   .filter-option {

@@ -26,7 +26,16 @@ import { isElectron } from 'utils/common/platform';
 import { globalEnvironmentsUpdateEvent, updateGlobalEnvironments } from 'providers/ReduxStore/slices/global-environments';
 import { collectionAddOauth2CredentialsByUrl, updateCollectionLoadingState } from 'providers/ReduxStore/slices/collections/index';
 import { addLog } from 'providers/ReduxStore/slices/logs';
-import { updateSystemResources } from 'providers/ReduxStore/slices/performance';
+import {
+  addFileOperation,
+  addWatcherEvent,
+  addParsingError,
+  updateWatcherStats,
+  addActiveWatcher,
+  removeActiveWatcher,
+  updateWatcherStatus,
+  updateSystemResources
+} from 'providers/ReduxStore/slices/fileSync';
 
 const useIpcEvents = () => {
   const dispatch = useDispatch();
@@ -146,7 +155,48 @@ const useIpcEvents = () => {
       }));
     });
 
-    const removeSystemResourcesListener = ipcRenderer.on('main:filesync-system-resources', resourceData => {
+    // FileSync event listeners
+    const removeFileSyncOperationListener = ipcRenderer.on('main:filesync-operation', (operationData) => {
+      dispatch(addFileOperation(operationData));
+    });
+
+    const removeFileSyncParsingErrorListener = ipcRenderer.on('main:filesync-parsing-error', (errorData) => {
+      dispatch(addParsingError(errorData));
+    });
+
+    const removeFileSyncWatcherStatsListener = ipcRenderer.on('main:filesync-watcher-stats', (statsData) => {
+      dispatch(updateWatcherStats(statsData));
+    });
+
+    const removeFileSyncWatcherEventListener = ipcRenderer.on('main:filesync-watcher-event', (eventData) => {
+      const { collectionUid, event, data, timestamp } = eventData;
+
+      if (event === 'started') {
+        dispatch(addActiveWatcher({
+          collectionUid,
+          watchPath: data.watchPath,
+          config: {
+            usePolling: data.usePolling,
+            ignored: data.ignorePatterns
+          }
+        }));
+      } else if (event === 'stopped') {
+        dispatch(removeActiveWatcher({ collectionUid }));
+      } else if (['add', 'change', 'unlink', 'addDir', 'unlinkDir'].includes(event)) {
+        // File system events for Events tab
+        dispatch(addWatcherEvent({
+          event,
+          filepath: data.filepath,
+          collectionUid,
+          details: data,
+          timestamp
+        }));
+      } else {
+        dispatch(updateWatcherStatus({ collectionUid, status: event }));
+      }
+    });
+
+    const removeFileSyncSystemResourcesListener = ipcRenderer.on('main:filesync-system-resources', (resourceData) => {
       dispatch(updateSystemResources(resourceData));
     });
 
@@ -214,7 +264,11 @@ const useIpcEvents = () => {
       removeCollectionOauth2CredentialsUpdatesListener();
       removeCollectionLoadingStateListener();
       removePersistentEnvVariablesUpdateListener();
-      removeSystemResourcesListener();
+      removeFileSyncOperationListener();
+      removeFileSyncParsingErrorListener();
+      removeFileSyncWatcherStatsListener();
+      removeFileSyncWatcherEventListener();
+      removeFileSyncSystemResourcesListener();
     };
   }, [isElectron]);
 };

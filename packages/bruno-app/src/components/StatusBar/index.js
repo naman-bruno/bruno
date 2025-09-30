@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { IconSettings, IconCookie, IconTool, IconSearch } from '@tabler/icons';
+import { IconSettings, IconCookie, IconTool, IconSearch, IconAlertTriangle } from '@tabler/icons';
 import Mousetrap from 'mousetrap';
 import { getKeyBindingsForActionAllOS } from 'providers/Hotkeys/keyMappings';
 import ToolHint from 'components/ToolHint';
@@ -10,7 +10,8 @@ import Cookies from 'components/Cookies';
 import Notifications from 'components/Notifications';
 import Portal from 'components/Portal';
 import { showPreferences, toggleSidebarCollapse } from 'providers/ReduxStore/slices/app';
-import { openConsole } from 'providers/ReduxStore/slices/logs';
+import { openConsole, setActiveTab } from 'providers/ReduxStore/slices/logs';
+import { setActiveTab as setFileSyncActiveTab } from 'providers/ReduxStore/slices/fileSync';
 import { useApp } from 'providers/App';
 import StyledWrapper from './StyledWrapper';
 
@@ -19,13 +20,21 @@ const StatusBar = () => {
   const preferencesOpen = useSelector((state) => state.app.showPreferences);
   const logs = useSelector((state) => state.logs.logs);
   const sidebarCollapsed = useSelector((state) => state.app.sidebarCollapsed);
+  const fileSyncState = useSelector((state) => state.fileSync);
   const [cookiesOpen, setCookiesOpen] = useState(false);
   const { version } = useApp();
 
   const errorCount = logs.filter(log => log.type === 'error').length;
+  const parseErrorCount = fileSyncState.parsingErrors.length;
 
   const handleConsoleClick = () => {
     dispatch(openConsole());
+  };
+
+  const handleParseErrorsClick = () => {
+    dispatch(openConsole());
+    dispatch(setActiveTab('filesync'));
+    dispatch(setFileSyncActiveTab('error'));
   };
 
   const openGlobalSearch = () => {
@@ -143,6 +152,24 @@ const StatusBar = () => {
                 )}
               </div>
             </button>
+
+            {parseErrorCount > 0 && (
+              <ToolHint text={`${parseErrorCount} Parse Error${parseErrorCount > 1 ? 's' : ''}`} toolhintId="Parse Errors" place="top" offset={10}>
+                <button
+                  className="status-bar-button has-parse-errors"
+                  data-trigger="parse-errors"
+                  onClick={handleParseErrorsClick}
+                  tabIndex={0}
+                  aria-label={`Parse Errors (${parseErrorCount})`}
+                >
+                  <div className="console-button-content">
+                    <IconAlertTriangle size={16} strokeWidth={1.5} aria-hidden="true" />
+                    <span className="console-label">Parse Errors</span>
+                    <span className="error-count-inline">{parseErrorCount}</span>
+                  </div>
+                </button>
+              </ToolHint>
+            )}
             
             <div className="status-bar-divider"></div>
             

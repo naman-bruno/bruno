@@ -13,6 +13,7 @@ import {
   IconChevronDown,
   IconTerminal2,
   IconNetwork,
+  IconFiles,
   IconDashboard,
 } from '@tabler/icons';
 import { 
@@ -25,12 +26,24 @@ import {
   updateNetworkFilter,
   toggleAllNetworkFilters
 } from 'providers/ReduxStore/slices/logs';
-
+import {
+  updateOperationFilter,
+  toggleAllOperationFilters,
+  updateEventFilter,
+  toggleAllEventFilters,
+  updateErrorFilter,
+  toggleAllErrorFilters,
+  clearFileOperations,
+  clearWatcherEvents,
+  clearParsingErrors
+} from 'providers/ReduxStore/slices/fileSync';
 import NetworkTab from './NetworkTab';
 import RequestDetailsPanel from './RequestDetailsPanel';
 // import DebugTab from './DebugTab';
 import ErrorDetailsPanel from './ErrorDetailsPanel';
+import FileSync from '../FileSync';
 import Performance from '../Performance';
+import { OperationFilterDropdown, EventFilterDropdown, ErrorFilterDropdown } from '../FileSync/FilterDropdowns';
 import StyledWrapper from './StyledWrapper';
 
 const LogIcon = ({ type }) => {
@@ -301,6 +314,7 @@ const Console = () => {
   const dispatch = useDispatch();
   const { logs, filters, activeTab, selectedRequest, selectedError, networkFilters, debugErrors } = useSelector(state => state.logs);
   const collections = useSelector(state => state.collections.collections);
+  const fileSyncState = useSelector((state) => state.fileSync);
   const consoleRef = useRef(null);
 
   const logCounts = logs.reduce((counts, log) => {
@@ -340,6 +354,22 @@ const Console = () => {
     return counts;
   }, {});
 
+  // FileSync counts
+  const operationCounts = fileSyncState.fileOperations.reduce((counts, operation) => {
+    counts[operation.operation] = (counts[operation.operation] || 0) + 1;
+    return counts;
+  }, {});
+
+  const eventCounts = fileSyncState.watcherEvents.reduce((counts, event) => {
+    counts[event.event] = (counts[event.event] || 0) + 1;
+    return counts;
+  }, {});
+
+  const errorCounts = fileSyncState.parsingErrors.reduce((counts, error) => {
+    counts[error.type] = (counts[error.type] || 0) + 1;
+    return counts;
+  }, {});
+
   const handleFilterToggle = (filterType, enabled) => {
     dispatch(updateFilter({ filterType, enabled }));
   };
@@ -368,6 +398,43 @@ const Console = () => {
     dispatch(toggleAllNetworkFilters(enabled));
   };
 
+  // FileSync handlers
+  const handleOperationFilterToggle = (filterType, enabled) => {
+    dispatch(updateOperationFilter({ filterType, enabled }));
+  };
+
+  const handleToggleAllOperationFilters = (enabled) => {
+    dispatch(toggleAllOperationFilters(enabled));
+  };
+
+  const handleEventFilterToggle = (filterType, enabled) => {
+    dispatch(updateEventFilter({ filterType, enabled }));
+  };
+
+  const handleToggleAllEventFilters = (enabled) => {
+    dispatch(toggleAllEventFilters(enabled));
+  };
+
+  const handleErrorFilterToggle = (filterType, enabled) => {
+    dispatch(updateErrorFilter({ filterType, enabled }));
+  };
+
+  const handleToggleAllErrorFilters = (enabled) => {
+    dispatch(toggleAllErrorFilters(enabled));
+  };
+
+  const handleClearOperations = () => {
+    dispatch(clearFileOperations());
+  };
+
+  const handleClearEvents = () => {
+    dispatch(clearWatcherEvents());
+  };
+
+  const handleClearErrors = () => {
+    dispatch(clearParsingErrors());
+  };
+
   const handleTabChange = (tab) => {
     dispatch(setActiveTab(tab));
   };
@@ -387,6 +454,8 @@ const Console = () => {
         );
       case 'network':
         return <NetworkTab />;
+      case 'filesync':
+        return <FileSync />;
       case 'performance':
         return <Performance />;
       // case 'debug':
@@ -442,6 +511,75 @@ const Console = () => {
             </div>
           </div>
         );
+      case 'filesync':
+        if (fileSyncState.activeTab === 'operations') {
+          return (
+            <div className="tab-controls">
+              <div className="filter-controls">
+                <OperationFilterDropdown
+                  filters={fileSyncState.operationFilters}
+                  counts={operationCounts}
+                  onFilterToggle={handleOperationFilterToggle}
+                  onToggleAll={handleToggleAllOperationFilters}
+                />
+              </div>
+              <div className="action-controls">
+                <button
+                  className="control-button"
+                  onClick={handleClearOperations}
+                  title="Clear all operations"
+                >
+                  <IconTrash size={16} strokeWidth={1.5} />
+                </button>
+              </div>
+            </div>
+          );
+        } else if (fileSyncState.activeTab === 'events') {
+          return (
+            <div className="tab-controls">
+              <div className="filter-controls">
+                <EventFilterDropdown
+                  filters={fileSyncState.eventFilters}
+                  counts={eventCounts}
+                  onFilterToggle={handleEventFilterToggle}
+                  onToggleAll={handleToggleAllEventFilters}
+                />
+              </div>
+              <div className="action-controls">
+                <button
+                  className="control-button"
+                  onClick={handleClearEvents}
+                  title="Clear all events"
+                >
+                  <IconTrash size={16} strokeWidth={1.5} />
+                </button>
+              </div>
+            </div>
+          );
+        } else if (fileSyncState.activeTab === 'error') {
+          return (
+            <div className="tab-controls">
+              <div className="filter-controls">
+                <ErrorFilterDropdown
+                  filters={fileSyncState.errorFilters}
+                  counts={errorCounts}
+                  onFilterToggle={handleErrorFilterToggle}
+                  onToggleAll={handleToggleAllErrorFilters}
+                />
+              </div>
+              <div className="action-controls">
+                <button
+                  className="control-button"
+                  onClick={handleClearErrors}
+                  title="Clear all errors"
+                >
+                  <IconTrash size={16} strokeWidth={1.5} />
+                </button>
+              </div>
+            </div>
+          );
+        }
+        return null;
       // case 'debug':
       //   return (
       //     <div className="tab-controls">
@@ -489,6 +627,14 @@ const Console = () => {
             <span>Network</span>
           </button>
           
+          <button
+            className={`console-tab ${activeTab === 'filesync' ? 'active' : ''}`}
+            onClick={() => handleTabChange('filesync')}
+          >
+            <IconFiles size={16} strokeWidth={1.5} />
+            <span>FileSync</span>
+          </button>
+
           <button
             className={`console-tab ${activeTab === 'performance' ? 'active' : ''}`}
             onClick={() => handleTabChange('performance')}
