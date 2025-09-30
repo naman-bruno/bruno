@@ -33,9 +33,9 @@ import {
   updateWatcherStats,
   addActiveWatcher,
   removeActiveWatcher,
-  updateWatcherStatus,
-  updateSystemResources
+  updateWatcherStatus
 } from 'providers/ReduxStore/slices/fileSync';
+import { updateSystemResources } from 'providers/ReduxStore/slices/performance';
 
 const useIpcEvents = () => {
   const dispatch = useDispatch();

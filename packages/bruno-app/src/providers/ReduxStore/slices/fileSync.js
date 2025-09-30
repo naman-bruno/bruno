@@ -20,13 +20,6 @@ const initialState = {
   watcherStats: {},
   parsingErrors: [],
   activeWatchers: {},
-  systemResources: {
-    cpu: 0,
-    memory: 0,
-    pid: null,
-    uptime: 0,
-    lastUpdated: null
-  },
   eventFilters: {
     add: true,
     change: true,
@@ -143,14 +136,6 @@ export const fileSyncSlice = createSlice({
       toggleAllFilters(state, action.payload, 'operationFilters');
     },
 
-    updateSystemResources: (state, action) => {
-      state.systemResources = {
-        ...state.systemResources,
-        ...action.payload,
-        lastUpdated: new Date().toISOString()
-      };
-    },
-
     setActiveTab: (state, action) => {
       state.activeTab = action.payload;
       if (action.payload !== 'operations') state.selectedOperation = null;
@@ -188,7 +173,6 @@ export const {
   toggleAllEventFilters,
   updateOperationFilter,
   toggleAllOperationFilters,
-  updateSystemResources,
   setActiveTab,
   setSelectedEvent,
   setSelectedOperation,

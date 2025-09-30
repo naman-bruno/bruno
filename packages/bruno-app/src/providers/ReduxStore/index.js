@@ -8,6 +8,7 @@ import notificationsReducer from './slices/notifications';
 import globalEnvironmentsReducer from './slices/global-environments';
 import logsReducer from './slices/logs';
 import fileSyncReducer from './slices/fileSync';
+import performanceReducer from './slices/performance';
 import { draftDetectMiddleware } from './middlewares/draft/middleware';
 
 const isDevEnv = () => {
@@ -27,6 +28,7 @@ export const store = configureStore({
     notifications: notificationsReducer,
     globalEnvironments: globalEnvironmentsReducer,
     logs: logsReducer,
+    performance: performanceReducer,
     fileSync: fileSyncReducer
   },
   middleware: (getDefaultMiddleware) => getDefaultMiddleware().concat(middleware)

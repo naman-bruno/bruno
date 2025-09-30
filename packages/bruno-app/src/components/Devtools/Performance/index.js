@@ -103,9 +103,10 @@ const Performance = () => {
     fileOperations,
     watcherStats,
     parsingErrors,
-    activeWatchers,
-    systemResources
+    activeWatchers
   } = useSelector((state) => state.fileSync);
+
+  const { systemResources } = useSelector((state) => state.performance);
 
   return (
     <StyledWrapper>
