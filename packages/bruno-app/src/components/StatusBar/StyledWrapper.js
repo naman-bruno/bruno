@@ -35,6 +35,22 @@ const StyledWrapper = styled.div`
     cursor: pointer;
     position: relative;
     outline: none;
+
+    &.has-parse-errors {
+      color: ${props => props.theme.colors.text.danger};
+      
+      &:hover {
+        background: ${props => props.theme.colors.bg.danger}10;
+      }
+
+      .console-label {
+        color: ${props => props.theme.colors.text.danger};
+      }
+
+      svg {
+        color: ${props => props.theme.colors.text.danger};
+      }
+    }
   }
 
   .console-button-content {

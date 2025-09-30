@@ -26,6 +26,55 @@ const MAX_FILE_SIZE = 2.5 * 1024 * 1024;
 
 const environmentSecretsStore = new EnvironmentSecretsStore();
 
+// FileSync event emitters
+const emitFileOperation = (win, operation, pathname, collectionUid, details = {}) => {
+  const fileStats = fs.existsSync(pathname) ? fs.statSync(pathname) : null;
+  const operationData = {
+    operation,
+    filepath: pathname,
+    collectionUid,
+    details: {
+      ...details,
+      size: fileStats ? fileStats.size : undefined,
+    },
+    timestamp: new Date().toISOString(),
+    id: uuid(), // Add unique ID for operations
+  };
+
+  win.webContents.send('main:filesync-operation', operationData);
+};
+
+const emitParsingError = (win, pathname, collectionUid, error) => {
+  const errorData = {
+    filepath: pathname,
+    collectionUid,
+    error: error?.message || error || 'Unknown parsing error',
+    stack: error?.stack,
+    timestamp: new Date().toISOString(),
+  };
+
+  win.webContents.send('main:filesync-parsing-error', errorData);
+};
+
+const emitWatcherStats = (win, collectionUid, stats) => {
+  win.webContents.send('main:filesync-watcher-stats', {
+    collectionUid,
+    stats: {
+      ...stats,
+      lastUpdated: new Date().toISOString(),
+    },
+  });
+};
+
+const emitWatcherEvent = (win, collectionUid, event, data = {}) => {
+  win.webContents.send('main:filesync-watcher-event', {
+    collectionUid,
+    event,
+    data,
+    timestamp: new Date().toISOString(),
+  });
+};
+
 const isDotEnvFile = (pathname, collectionPath) => {
   const dirname = path.dirname(pathname);
   const basename = path.basename(pathname);
@@ -172,6 +221,43 @@ const unlinkEnvironmentFile = async (win, pathname, collectionUid) => {
 const add = async (win, pathname, collectionUid, collectionPath, useWorkerThread, watcher) => {
   console.log(`watcher add: ${pathname}`);
 
+  // Emit watcher event for Events tab
+  emitWatcherEvent(win, collectionUid, 'add', { filepath: pathname });
+
+  // Emit read operation for Operations tab (file is being read)
+  let fileContent = null;
+  let parsedData = null;
+  try {
+    if (fs.existsSync(pathname)) {
+      fileContent = fs.readFileSync(pathname, 'utf8');
+
+      // If it's a BRU file, also parse it
+      if (hasBruExtension(pathname)) {
+        try {
+          if (isCollectionRootBruFile(pathname, collectionPath) || path.basename(pathname) === 'folder.bru') {
+            parsedData = await parseCollection(fileContent);
+          } else if (isBruEnvironmentConfig(pathname, collectionPath)) {
+            parsedData = await parseEnvironment(fileContent);
+          } else {
+            parsedData = await parseRequest(fileContent);
+          }
+        } catch (parseErr) {
+          // Parsing failed, but we still have the raw content
+          console.log('Parsing failed for file operation:', parseErr.message);
+        }
+      }
+    }
+  } catch (err) {
+    // File content read failed, continue without content
+  }
+
+  emitFileOperation(win, 'read', pathname, collectionUid, {
+    trigger: 'watcher_add',
+    content: fileContent,
+    parsedData: parsedData,
+    contentType: hasBruExtension(pathname) ? 'bru' : 'text',
+  });
+
   if (isBrunoConfigFile(pathname, collectionPath)) {
     try {
       const content = fs.readFileSync(pathname, 'utf8');
@@ -180,6 +266,7 @@ const add = async (win, pathname, collectionUid, collectionPath, useWorkerThread
       setBrunoConfig(collectionUid, brunoConfig);
     } catch (err) {
       console.error(err);
+      emitParsingError(win, pathname, collectionUid, err);
     }
   }
 
@@ -198,6 +285,7 @@ const add = async (win, pathname, collectionUid, collectionPath, useWorkerThread
       win.webContents.send('main:process-env-update', payload);
     } catch (err) {
       console.error(err);
+      emitParsingError(win, pathname, collectionUid, err);
     }
   }
 
@@ -225,6 +313,7 @@ const add = async (win, pathname, collectionUid, collectionPath, useWorkerThread
       return;
     } catch (err) {
       console.error(err);
+      emitParsingError(win, pathname, collectionUid, err);
       return;
     }
   }
@@ -249,6 +338,7 @@ const add = async (win, pathname, collectionUid, collectionPath, useWorkerThread
       return;
     } catch (err) {
       console.error(err);
+      emitParsingError(win, pathname, collectionUid, err);
       return;
     }
   }
@@ -278,6 +368,7 @@ const add = async (win, pathname, collectionUid, collectionPath, useWorkerThread
         
       } catch (error) {
         console.error(error);
+        emitParsingError(win, pathname, collectionUid, error);
       } finally {
         watcher.markFileAsProcessed(win, collectionUid, pathname);
       }
@@ -316,6 +407,7 @@ const add = async (win, pathname, collectionUid, collectionPath, useWorkerThread
         win.webContents.send('main:collection-tree-updated', 'addFile', file);
       }
     } catch(error) {
+      emitParsingError(win, pathname, collectionUid, error);
       file.data = {
         name: path.basename(pathname),
         type: 'http-request'
@@ -335,6 +427,9 @@ const add = async (win, pathname, collectionUid, collectionPath, useWorkerThread
 };
 
 const addDirectory = async (win, pathname, collectionUid, collectionPath) => {
+  // Emit watcher event for Events tab
+  emitWatcherEvent(win, collectionUid, 'addDir', { filepath: pathname });
+
   const envDirectory = path.join(collectionPath, 'environments');
 
   if (pathname === envDirectory) {
@@ -372,6 +467,43 @@ const addDirectory = async (win, pathname, collectionUid, collectionPath) => {
 };
 
 const change = async (win, pathname, collectionUid, collectionPath) => {
+  // Emit watcher event for Events tab
+  emitWatcherEvent(win, collectionUid, 'change', { filepath: pathname });
+
+  // Emit read operation for Operations tab (file is being read)
+  let fileContent = null;
+  let parsedData = null;
+  try {
+    if (fs.existsSync(pathname)) {
+      fileContent = fs.readFileSync(pathname, 'utf8');
+
+      // If it's a BRU file, also parse it
+      if (hasBruExtension(pathname)) {
+        try {
+          if (isCollectionRootBruFile(pathname, collectionPath) || path.basename(pathname) === 'folder.bru') {
+            parsedData = await parseCollection(fileContent);
+          } else if (isBruEnvironmentConfig(pathname, collectionPath)) {
+            parsedData = await parseEnvironment(fileContent);
+          } else {
+            parsedData = await parseRequest(fileContent);
+          }
+        } catch (parseErr) {
+          // Parsing failed, but we still have the raw content
+          console.log('Parsing failed for file operation:', parseErr.message);
+        }
+      }
+    }
+  } catch (err) {
+    // File content read failed, continue without content
+  }
+
+  emitFileOperation(win, 'read', pathname, collectionUid, {
+    trigger: 'watcher_change',
+    content: fileContent,
+    parsedData: parsedData,
+    contentType: hasBruExtension(pathname) ? 'bru' : 'text',
+  });
+
   if (isBrunoConfigFile(pathname, collectionPath)) {
     try {
       const content = fs.readFileSync(pathname, 'utf8');
@@ -386,6 +518,7 @@ const change = async (win, pathname, collectionUid, collectionPath) => {
       win.webContents.send('main:bruno-config-update', payload);
     } catch (err) {
       console.error(err);
+      emitParsingError(win, pathname, collectionUid, err);
     }
   }
 
@@ -404,6 +537,7 @@ const change = async (win, pathname, collectionUid, collectionPath) => {
       win.webContents.send('main:process-env-update', payload);
     } catch (err) {
       console.error(err);
+      emitParsingError(win, pathname, collectionUid, err);
     }
   }
 
@@ -430,6 +564,7 @@ const change = async (win, pathname, collectionUid, collectionPath) => {
       return;
     } catch (err) {
       console.error(err);
+      emitParsingError(win, pathname, collectionUid, err);
       return;
     }
   }
@@ -454,6 +589,7 @@ const change = async (win, pathname, collectionUid, collectionPath) => {
       return;
     } catch (err) {
       console.error(err);
+      emitParsingError(win, pathname, collectionUid, err);
       return;
     }
   }
@@ -485,12 +621,16 @@ const change = async (win, pathname, collectionUid, collectionPath) => {
       }
     } catch (err) {
       console.error(err);
+      emitParsingError(win, pathname, collectionUid, err);
     }
   }
 };
 
 const unlink = (win, pathname, collectionUid, collectionPath) => {
   console.log(`watcher unlink: ${pathname}`);
+
+  // Emit watcher event for Events tab
+  emitWatcherEvent(win, collectionUid, 'unlink', { filepath: pathname });
 
   if (isBruEnvironmentConfig(pathname, collectionPath)) {
     return unlinkEnvironmentFile(win, pathname, collectionUid);
@@ -509,6 +649,9 @@ const unlink = (win, pathname, collectionUid, collectionPath) => {
 };
 
 const unlinkDir = async (win, pathname, collectionUid, collectionPath) => {
+  // Emit watcher event for Events tab
+  emitWatcherEvent(win, collectionUid, 'unlinkDir', { filepath: pathname });
+
   const envDirectory = path.join(collectionPath, 'environments');
 
   if (pathname === envDirectory) {
@@ -550,17 +693,26 @@ class CollectionWatcher {
   constructor() {
     this.watchers = {};
     this.loadingStates = {};
+    this.pathToUidMapping = {};
   }
 
-  // Initialize loading state tracking for a collection
   initializeLoadingState(collectionUid) {
     if (!this.loadingStates[collectionUid]) {
       this.loadingStates[collectionUid] = {
-        isDiscovering: false, // Initial discovery phase
-        isProcessing: false,  // Processing discovered files
-        pendingFiles: new Set(), // Files that need processing
+        isDiscovering: false,
+        isProcessing: false,
+        pendingFiles: new Set(),
       };
     }
+  }
+
+  findCollectionUidByPath(filePath) {
+    for (const [collectionPath, collectionUid] of Object.entries(this.pathToUidMapping)) {
+      if (filePath.startsWith(collectionPath)) {
+        return collectionUid;
+      }
+    }
+    return null;
   }
 
   startCollectionDiscovery(win, collectionUid) {
@@ -625,9 +777,18 @@ class CollectionWatcher {
       this.watchers[watchPath].close();
     }
 
+    this.pathToUidMapping[watchPath] = collectionUid;
+
     this.initializeLoadingState(collectionUid);
-    
+
     this.startCollectionDiscovery(win, collectionUid);
+
+    // Emit watcher started event
+    emitWatcherEvent(win, collectionUid, 'started', {
+      watchPath,
+      usePolling: forcePolling,
+      ignorePatterns: brunoConfig?.ignore || [],
+    });
 
     const ignores = brunoConfig?.ignore || [];
     setTimeout(() => {
@@ -653,14 +814,40 @@ class CollectionWatcher {
       });
 
       let startedNewWatcher = false;
+      let eventCount = 0;
+
       watcher
-        .on('ready', () => onWatcherSetupComplete(win, watchPath, collectionUid, this))
-        .on('add', (pathname) => add(win, pathname, collectionUid, watchPath, useWorkerThread, this))
-        .on('addDir', (pathname) => addDirectory(win, pathname, collectionUid, watchPath))
-        .on('change', (pathname) => change(win, pathname, collectionUid, watchPath))
-        .on('unlink', (pathname) => unlink(win, pathname, collectionUid, watchPath))
-        .on('unlinkDir', (pathname) => unlinkDir(win, pathname, collectionUid, watchPath))
-        .on('error', (error) => {
+        .on('ready', () => {
+          onWatcherSetupComplete(win, watchPath, collectionUid, this);
+          // Emit initial watcher stats
+          this.updateWatcherStats(win, collectionUid, watcher);
+        })
+        .on('add', pathname => {
+          add(win, pathname, collectionUid, watchPath, useWorkerThread, this);
+          eventCount++;
+          this.updateWatcherStats(win, collectionUid, watcher, eventCount);
+        })
+        .on('addDir', pathname => {
+          addDirectory(win, pathname, collectionUid, watchPath);
+          eventCount++;
+          this.updateWatcherStats(win, collectionUid, watcher, eventCount);
+        })
+        .on('change', pathname => {
+          change(win, pathname, collectionUid, watchPath);
+          eventCount++;
+          this.updateWatcherStats(win, collectionUid, watcher, eventCount);
+        })
+        .on('unlink', pathname => {
+          unlink(win, pathname, collectionUid, watchPath);
+          eventCount++;
+          this.updateWatcherStats(win, collectionUid, watcher, eventCount);
+        })
+        .on('unlinkDir', pathname => {
+          unlinkDir(win, pathname, collectionUid, watchPath);
+          eventCount++;
+          this.updateWatcherStats(win, collectionUid, watcher, eventCount);
+        })
+        .on('error', error => {
           // `EMFILE` is an error code thrown when to many files are watched at the same time see: https://github.com/usebruno/bruno/issues/627
           // `ENOSPC` stands for "Error No space" but is also thrown if the file watcher limit is reached.
           // To prevent loops `!forcePolling` is checked.
@@ -696,8 +883,12 @@ class CollectionWatcher {
       this.watchers[watchPath] = null;
     }
     
+    delete this.pathToUidMapping[watchPath];
+
     if (collectionUid) {
       this.cleanupLoadingState(collectionUid);
+      // Emit watcher stopped event
+      emitWatcherEvent(win, collectionUid, 'stopped', { watchPath });
     }
   }
 
@@ -725,6 +916,25 @@ class CollectionWatcher {
     const watcher = this.getWatcherByItemPath(itemPath);
     if (watcher && !watcher?.has?.(itemPath)) {
       watcher?.add?.(itemPath);
+    }
+  }
+
+  updateWatcherStats(win, collectionUid, watcher, eventCount = 0) {
+    try {
+      const watchedPaths = watcher.getWatched ? watcher.getWatched() : {};
+      const watchedFiles = Object.values(watchedPaths).reduce((total, files) => total + files.length, 0);
+      const watchedDirectories = Object.keys(watchedPaths).length;
+
+      const stats = {
+        watchedFiles,
+        watchedDirectories,
+        totalEvents: eventCount,
+        lastEventTime: eventCount > 0 ? new Date().toISOString() : null,
+      };
+
+      emitWatcherStats(win, collectionUid, stats);
+    } catch (error) {
+      console.error('Error updating watcher stats:', error);
     }
   }
 

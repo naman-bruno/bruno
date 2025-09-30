@@ -250,6 +250,28 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
       validatePathIsInsideCollection(pathname, lastOpenedCollections);
       const content = await stringifyRequestViaWorker(request);
       await writeFile(pathname, content);
+
+      // Emit write operation for FileSync tracking
+      const mainWindow = event.sender.getOwnerBrowserWindow();
+      if (mainWindow && mainWindow.webContents) {
+        // Find collection UID using the watcher's path mapping
+        let collectionUid = request.collectionUid || collectionWatcher.findCollectionUidByPath(pathname);
+
+        if (collectionUid) {
+          mainWindow.webContents.send('main:filesync-operation', {
+            operation: 'write',
+            filepath: pathname,
+            collectionUid: collectionUid,
+            details: {
+              trigger: 'new_request',
+              content: content,
+              contentType: hasBruExtension(pathname) ? 'bru' : 'text',
+              size: Buffer.byteLength(content, 'utf8'),
+            },
+            timestamp: new Date().toISOString(),
+          });
+        }
+      }
     } catch (error) {
       return Promise.reject(error);
     }
@@ -264,6 +286,31 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
 
       const content = await stringifyRequestViaWorker(request);
       await writeFile(pathname, content);
+
+      // Emit write operation for FileSync tracking
+      const mainWindow = event.sender.getOwnerBrowserWindow();
+      if (mainWindow && mainWindow.webContents) {
+        // Find collection UID using the watcher's path mapping
+        let collectionUid = request.collectionUid || collectionWatcher.findCollectionUidByPath(pathname);
+
+        if (collectionUid) {
+          const writeOperation = {
+            operation: 'write',
+            filepath: pathname,
+            collectionUid: collectionUid,
+            details: {
+              trigger: 'save_request',
+              content: content,
+              parsedData: request, // Include the original request object as parsed data
+              contentType: hasBruExtension(pathname) ? 'bru' : 'text',
+              size: Buffer.byteLength(content, 'utf8'),
+            },
+            timestamp: new Date().toISOString(),
+            id: require('../utils/common').uuid(),
+          };
+          mainWindow.webContents.send('main:filesync-operation', writeOperation);
+        }
+      }
     } catch (error) {
       return Promise.reject(error);
     }
@@ -272,6 +319,8 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
   // save multiple requests
   ipcMain.handle('renderer:save-multiple-requests', async (event, requestsToSave) => {
     try {
+      const mainWindow = event.sender.getOwnerBrowserWindow();
+
       for (let r of requestsToSave) {
         const request = r.item;
         const pathname = r.pathname;
@@ -282,6 +331,28 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
 
         const content = await stringifyRequestViaWorker(request);
         await writeFile(pathname, content);
+
+        if (mainWindow && mainWindow.webContents) {
+          let collectionUid = request.collectionUid || collectionWatcher.findCollectionUidByPath(pathname);
+
+          if (collectionUid) {
+            const writeOperation = {
+              operation: 'write',
+              filepath: pathname,
+              collectionUid: collectionUid,
+              details: {
+                trigger: 'save_multiple_requests',
+                content: content,
+                parsedData: request,
+                contentType: hasBruExtension(pathname) ? 'bru' : 'text',
+                size: Buffer.byteLength(content, 'utf8'),
+              },
+              timestamp: new Date().toISOString(),
+              id: require('../utils/common').uuid(),
+            };
+            mainWindow.webContents.send('main:filesync-operation', writeOperation);
+          }
+        }
       }
     } catch (error) {
       return Promise.reject(error);
@@ -313,6 +384,27 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
       const content = await stringifyEnvironment(environment);
 
       await writeFile(envFilePath, content);
+
+      // Emit write operation for FileSync tracking
+      const mainWindow = event.sender.getOwnerBrowserWindow();
+      if (mainWindow && mainWindow.webContents) {
+        // Find collection UID using the watcher's path mapping
+        const collectionUid = collectionWatcher.findCollectionUidByPath(envFilePath);
+        if (collectionUid) {
+          mainWindow.webContents.send('main:filesync-operation', {
+            operation: 'write',
+            filepath: envFilePath,
+            collectionUid: collectionUid,
+            details: {
+              trigger: 'create_environment',
+              content: content,
+              contentType: 'bru',
+              size: Buffer.byteLength(content, 'utf8'),
+            },
+            timestamp: new Date().toISOString(),
+          });
+        }
+      }
     } catch (error) {
       return Promise.reject(error);
     }
@@ -337,6 +429,27 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
 
       const content = await stringifyEnvironment(environment);
       await writeFile(envFilePath, content);
+
+      // Emit write operation for FileSync tracking
+      const mainWindow = event.sender.getOwnerBrowserWindow();
+      if (mainWindow && mainWindow.webContents) {
+        // Find collection UID using the watcher's path mapping
+        const collectionUid = collectionWatcher.findCollectionUidByPath(envFilePath);
+        if (collectionUid) {
+          mainWindow.webContents.send('main:filesync-operation', {
+            operation: 'write',
+            filepath: envFilePath,
+            collectionUid: collectionUid,
+            details: {
+              trigger: 'save_environment',
+              content: content,
+              contentType: 'bru',
+              size: Buffer.byteLength(content, 'utf8'),
+            },
+            timestamp: new Date().toISOString(),
+          });
+        }
+      }
     } catch (error) {
       return Promise.reject(error);
     }
@@ -532,6 +645,27 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
         const folderBruFilePath = path.join(pathname, 'folder.bru');
         const content = await stringifyFolder(folderBruJsonData);
         await writeFile(folderBruFilePath, content);
+
+        // Emit write operation for FileSync tracking
+        const mainWindow = event.sender.getOwnerBrowserWindow();
+        if (mainWindow && mainWindow.webContents) {
+          // Find collection UID using the watcher's path mapping
+          const collectionUid = folderBruJsonData.collectionUid || collectionWatcher.findCollectionUidByPath(folderBruFilePath);
+          if (collectionUid) {
+            mainWindow.webContents.send('main:filesync-operation', {
+              operation: 'write',
+              filepath: folderBruFilePath,
+              collectionUid: collectionUid,
+              details: {
+                trigger: 'new_folder',
+                content: content,
+                contentType: 'bru',
+                size: Buffer.byteLength(content, 'utf8'),
+              },
+              timestamp: new Date().toISOString(),
+            });
+          }
+        }
       } else {
         return Promise.reject(new Error('The directory already exists'));
       }
@@ -848,6 +982,23 @@ const registerRendererEventHandlers = (mainWindow, watcher, lastOpenedCollection
       const brunoConfigPath = path.join(collectionPath, 'bruno.json');
       const content = await stringifyJson(brunoConfig);
       await writeFile(brunoConfigPath, content);
+
+      // Emit write operation for FileSync tracking
+      const mainWindow = event.sender.getOwnerBrowserWindow();
+      if (mainWindow && mainWindow.webContents && collectionUid) {
+        mainWindow.webContents.send('main:filesync-operation', {
+          operation: 'write',
+          filepath: brunoConfigPath,
+          collectionUid: collectionUid,
+          details: {
+            trigger: 'update_bruno_config',
+            content: content,
+            contentType: 'json',
+            size: Buffer.byteLength(content, 'utf8'),
+          },
+          timestamp: new Date().toISOString(),
+        });
+      }
     } catch (error) {
       return Promise.reject(error);
     }
