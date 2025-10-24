@@ -17,7 +17,8 @@ import NTLMAuth from 'components/RequestPane/Auth/NTLMAuth';
 import WsseAuth from 'components/RequestPane/Auth/WsseAuth';
 import ApiKeyAuth from 'components/RequestPane/Auth/ApiKeyAuth';
 import AwsV4Auth from 'components/RequestPane/Auth/AwsV4Auth';
-import { humanizeRequestAuthMode, getTreePathFromCollectionToItem } from 'utils/collections/index';
+import { humanizeRequestAuthMode, getTreePathFromCollectionToItem, humanizeRequestAuthMode } from 'utils/collections/index';
+import EdgeGridAuth from 'components/RequestPane/Auth/EdgeGridAuth';
 
 const GrantTypeComponentMap = ({ collection, folder }) => {
   const dispatch = useDispatch();
@@ -60,7 +61,7 @@ const Auth = ({ collection, folder }) => {
 
     // Get path from collection to current folder
     const folderTreePath = getTreePathFromCollectionToItem(collection, folder);
-    
+
     // Check parent folders to find closest auth configuration
     // Skip the last item which is the current folder
     for (let i = 0; i < folderTreePath.length - 1; i++) {
@@ -164,12 +165,23 @@ const Auth = ({ collection, folder }) => {
           />
         );
       }
+      case 'edgegrid': {
+        return (
+          <EdgeGridAuth
+            collection={collection}
+            item={folder}
+            updateAuth={updateFolderAuth}
+            request={request}
+            save={() => handleSave()}
+          />
+        );
+      }
       case 'oauth2': {
         return (
           <>
             <GrantTypeSelector
-              request={request} 
-              updateAuth={updateFolderAuth} 
+              request={request}
+              updateAuth={updateFolderAuth}
               collection={collection}
               item={folder}
             />
@@ -216,4 +228,4 @@ const Auth = ({ collection, folder }) => {
   );
 };
 
-export default Auth; 
+export default Auth;
