@@ -142,7 +142,18 @@ export function signEdgeGridRequest(config, request) {
 
   // Generate or use provided nonce and timestamp
   const nonce = config.nonce && isStrPresent(config.nonce) ? config.nonce : makeEdgeGridNonce();
-  const timestamp = config.timestamp && isStrPresent(config.timestamp) ? config.timestamp : makeEdgeGridTimestamp();
+
+  let timestamp;
+  if (config.timestamp && isStrPresent(config.timestamp)) {
+    // Validate timestamp format: YYYYMMDDTHHmmss+0000
+    const timestampPattern = /^\d{8}T\d{6}\+\d{4}$/;
+    if (!timestampPattern.test(config.timestamp)) {
+      throw new Error(`EdgeGrid: Invalid timestamp format. Expected YYYYMMDDTHHmmss+0000, got: ${config.timestamp}`);
+    }
+    timestamp = config.timestamp;
+  } else {
+    timestamp = makeEdgeGridTimestamp();
+  }
 
   // Create signing key
   const signingKey = makeSigningKey(clientSecret, timestamp);
@@ -151,16 +162,12 @@ export function signEdgeGridRequest(config, request) {
   let bodyString = '';
   if (request.data) {
     if (typeof request.data === 'string') {
-      // If it's a string, try to parse and re-stringify to ensure compact JSON
-      try {
-        const parsed = JSON.parse(request.data);
-        bodyString = JSON.stringify(parsed); // Compact JSON, no spaces
-      } catch (e) {
-        // If not valid JSON, use as-is
-        bodyString = request.data;
-      }
+      bodyString = request.data;
+    } else if (Buffer.isBuffer(request.data)) {
+      // For binary data, convert to string (EdgeGrid will hash the raw bytes)
+      bodyString = request.data.toString('binary');
     } else if (typeof request.data === 'object') {
-      // Serialize to compact JSON (no spaces/newlines)
+      // For objects, serialize to compact JSON
       bodyString = JSON.stringify(request.data);
     }
   }
@@ -225,8 +232,13 @@ export function addEdgeGridInterceptor(axiosInstance, request) {
       config.headers['Authorization'] = authHeader;
       return config;
     } catch (error) {
-      console.error('EdgeGrid signing error:', error);
-      return Promise.reject(error);
+      // Enhance error message with more context
+      const enhancedError = new Error(`EdgeGrid authentication failed: ${error.message}\n`
+        + `Make sure access_token, client_token, and client_secret are configured correctly.`);
+      enhancedError.originalError = error;
+      enhancedError.config = config;
+      console.error('EdgeGrid signing error:', enhancedError.message);
+      return Promise.reject(enhancedError);
     }
   },
   (error) => {
