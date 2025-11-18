@@ -41,12 +41,14 @@ const createCollectionJsonFromPathname = (collectionPath) => {
       }
       else {
         if (['collection.bru', 'folder.bru'].includes(file)) continue;
-        if (path.extname(filePath) !== '.bru') continue;
+        const ext = path.extname(filePath).toLowerCase();
+        if (!['.bru', '.yml', '.yaml'].includes(ext)) continue;
 
         // get the request item
         try {
           const bruContent = fs.readFileSync(filePath, 'utf8');
-          const requestItem = parseRequest(bruContent);
+          const format = ext === '.yml' || ext === '.yaml' ? 'yaml' : 'bru';
+          const requestItem = parseRequest(bruContent, { format });
           currentDirItems.push({
             name: file,
             pathname: filePath,

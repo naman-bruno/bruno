@@ -42,6 +42,7 @@
   },
   "dependencies": {
     "@usebruno/lang": "0.12.0",
-    "lodash": "^4.17.21"
+    "lodash": "^4.17.21",
+    "yaml": "^2.3.4"
   }
 }
