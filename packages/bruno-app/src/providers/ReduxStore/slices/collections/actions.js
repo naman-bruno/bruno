@@ -480,7 +480,7 @@ export const renameItem = ({ newName, newFilename, itemUid, collectionUid }) => 
       if (item.type === 'folder') {
         newPath = path.join(dirname, trim(newFilename));
       } else {
-        const filename = resolveRequestFilename(newFilename);
+        const filename = resolveRequestFilename(newFilename, collection.filetype);
         newPath = path.join(dirname, filename);
       }
 
@@ -548,7 +548,7 @@ export const cloneItem = (newName, newFilename, itemUid, collectionUid) => (disp
     }
 
     const parentItem = findParentItemInCollection(collectionCopy, itemUid);
-    const filename = resolveRequestFilename(newFilename);
+    const filename = resolveRequestFilename(newFilename, collection.filetype);
     const itemToSave = refreshUidsInItem(transformRequestToSaveToFilesystem(item));
     set(itemToSave, 'name', trim(newName));
     set(itemToSave, 'filename', trim(filename));
@@ -804,7 +804,7 @@ export const newHttpRequest = (params) => (dispatch, getState) => {
     };
 
     // itemUid is null when we are creating a new request at the root level
-    const resolvedFilename = resolveRequestFilename(filename);
+    const resolvedFilename = resolveRequestFilename(filename, collection.filetype);
     if (!itemUid) {
       const reqWithSameNameExists = find(
         collection.items,
@@ -1144,12 +1144,12 @@ export const openCollectionEvent = (uid, pathname, brunoConfig) => (dispatch, ge
   });
 };
 
-export const createCollection = (collectionName, collectionFolderName, collectionLocation) => () => {
+export const createCollection = (collectionName, collectionFolderName, collectionLocation, filetype = 'bru') => () => {
   const { ipcRenderer } = window;
 
   return new Promise((resolve, reject) => {
     ipcRenderer
-      .invoke('renderer:create-collection', collectionName, collectionFolderName, collectionLocation)
+      .invoke('renderer:create-collection', collectionName, collectionFolderName, collectionLocation, filetype)
       .then(resolve)
       .catch(reject);
   });

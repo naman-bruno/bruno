@@ -32,6 +32,11 @@ const NewRequest = ({ collectionUid, item, isEphemeral, onClose }) => {
   const {
     brunoConfig: { presets: collectionPresets = {} }
   } = collection;
+  
+  // Get file extension based on collection filetype
+  const getFileExtension = () => {
+    return collection?.filetype === 'yaml' ? '.yml' : '.bru';
+  };
   const [curlRequestTypeDetected, setCurlRequestTypeDetected] = useState(null);
   const [showFilesystemName, toggleShowFilesystemName] = useState(false);
 
@@ -131,6 +136,10 @@ const NewRequest = ({ collectionUid, item, isEphemeral, onClose }) => {
       })
     }),
     onSubmit: (values) => {
+      // Ensure filename has correct extension based on collection filetype
+      const fileExtension = getFileExtension();
+      const filename = values.filename.endsWith(fileExtension) ? values.filename : `${values.filename}${fileExtension}`;
+      
       if (isEphemeral) {
         const uid = uuid();
         dispatch(
@@ -393,12 +402,12 @@ const NewRequest = ({ collectionUid, item, isEphemeral, onClose }) => {
                       onChange={formik.handleChange}
                       value={formik.values.filename || ''}
                     />
-                    <span className='absolute right-2 top-4 flex justify-center items-center file-extension'>.bru</span>
+                    <span className='absolute right-2 top-4 flex justify-center items-center file-extension'>{getFileExtension()}</span>
                   </div>
                 ) : (
                   <div className='relative flex flex-row gap-1 items-center justify-between'>
                     <PathDisplay
-                      baseName={formik.values.filename? `${formik.values.filename}.bru` : ''}
+                      baseName={formik.values.filename? `${formik.values.filename}${getFileExtension()}` : ''}
                     />
                   </div>
                 )}

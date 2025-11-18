@@ -96,6 +96,11 @@ const hasBruExtension = (filename) => {
   return ['bru'].some((ext) => filename.toLowerCase().endsWith(`.${ext}`));
 };
 
+const hasRequestExtension = (filename) => {
+  if (!filename || typeof filename !== 'string') return false;
+  return ['bru', 'yml', 'yaml'].some((ext) => filename.toLowerCase().endsWith(`.${ext}`));
+};
+
 const createDirectory = async (dir) => {
   if (!dir) {
     throw new Error(`directory: path is null`);
@@ -159,6 +164,37 @@ const searchForFiles = (dir, extension) => {
 
 const searchForBruFiles = (dir) => {
   return searchForFiles(dir, '.bru');
+};
+
+// Search for request files based on filetype (bru or yaml)
+const searchForRequestFiles = (dir, filetype = 'bru') => {
+  if (filetype === 'yaml') {
+    // Search for both .yml and .yaml files
+    const ymlFiles = searchForFiles(dir, '.yml');
+    const yamlFiles = searchForFiles(dir, '.yaml');
+    return [...ymlFiles, ...yamlFiles];
+  } else {
+    return searchForFiles(dir, '.bru');
+  }
+};
+
+// Search for request files based on collection filetype by reading bruno.json
+const searchForCollectionRequestFiles = (dir) => {
+  try {
+    const brunoJsonPath = path.join(dir, 'bruno.json');
+    let collectionFiletype = 'bru'; // default
+    
+    if (fs.existsSync(brunoJsonPath)) {
+      const brunoJsonContent = fs.readFileSync(brunoJsonPath, 'utf8');
+      const brunoConfig = JSON.parse(brunoJsonContent);
+      collectionFiletype = brunoConfig.filetype || 'bru';
+    }
+    
+    return searchForRequestFiles(dir, collectionFiletype);
+  } catch (error) {
+    console.warn('Error reading collection filetype, defaulting to bru:', error);
+    return searchForRequestFiles(dir, 'bru');
+  }
 };
 
 const sanitizeName = (name) => {
@@ -356,12 +392,15 @@ module.exports = {
   writeFile,
   hasJsonExtension,
   hasBruExtension,
+  hasRequestExtension,
   createDirectory,
   browseDirectory,
   browseFiles,
   chooseFileToSave,
   searchForFiles,
   searchForBruFiles,
+  searchForRequestFiles,
+  searchForCollectionRequestFiles,
   sanitizeName,
   isWindowsOS,
   safeToRename,

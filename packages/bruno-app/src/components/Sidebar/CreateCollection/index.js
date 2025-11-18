@@ -18,13 +18,15 @@ const CreateCollection = ({ onClose }) => {
   const inputRef = useRef();
   const dispatch = useDispatch();
   const [isEditing, toggleEditing] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const formik = useFormik({
     enableReinitialize: true,
     initialValues: {
       collectionName: '',
       collectionFolderName: '',
-      collectionLocation: ''
+      collectionLocation: '',
+      filetype: 'bru'
     },
     validationSchema: Yup.object({
       collectionName: Yup.string()
@@ -39,10 +41,11 @@ const CreateCollection = ({ onClose }) => {
           return isValid ? true : this.createError({ message: validateNameError(value) });
         })
         .required('folder name is required'),
-      collectionLocation: Yup.string().min(1, 'location is required').required('location is required')
+      collectionLocation: Yup.string().min(1, 'location is required').required('location is required'),
+      filetype: Yup.string().oneOf(['bru', 'yaml'], 'invalid filetype').required('filetype is required')
     }),
     onSubmit: (values) => {
-      dispatch(createCollection(values.collectionName, values.collectionFolderName, values.collectionLocation))
+      dispatch(createCollection(values.collectionName, values.collectionFolderName, values.collectionLocation, values.filetype))
         .then(() => {
           toast.success('Collection created!');
           onClose();
@@ -194,6 +197,49 @@ const CreateCollection = ({ onClose }) => {
               ) : null}
             </div>
           )}
+
+          {/* Advanced Options */}
+          <div className="mt-6 border-t pt-4">
+            <div 
+              className="flex items-center cursor-pointer text-sm font-semibold text-link hover:underline" 
+              onClick={() => setShowAdvanced(!showAdvanced)}
+            >
+              <span className="mr-2">{showAdvanced ? '▼' : '▶'}</span>
+              Advanced Options
+            </div>
+            
+            {showAdvanced && (
+              <div className="mt-4">
+                <label htmlFor="filetype" className="flex items-center font-semibold">
+                  File Format
+                  <Help width="300">
+                    <p>
+                      Choose the file format for storing requests in this collection.
+                    </p>
+                    <p className="mt-2">
+                      <strong>BRU:</strong> Bruno's native file format (.bru files)
+                    </p>
+                    <p className="mt-1">
+                      <strong>YAML:</strong> Industry-standard YAML format (.yml files)
+                    </p>
+                  </Help>
+                </label>
+                <select
+                  id="filetype"
+                  name="filetype"
+                  className="block textbox mt-2 w-full"
+                  value={formik.values.filetype}
+                  onChange={formik.handleChange}
+                >
+                  <option value="bru">BRU Format (.bru)</option>
+                  <option value="yaml">YAML Format (.yml)</option>
+                </select>
+                {formik.touched.filetype && formik.errors.filetype ? (
+                  <div className="text-red-500">{formik.errors.filetype}</div>
+                ) : null}
+              </div>
+            )}
+          </div>
         </div>
       </form>
     </Modal>
