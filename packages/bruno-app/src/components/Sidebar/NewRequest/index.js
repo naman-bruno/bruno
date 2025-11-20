@@ -150,8 +150,7 @@ const NewRequest = ({ collectionUid, item, isEphemeral, onClose }) => {
     onSubmit: (values) => {
       const isGrpcRequest = values.requestType === 'grpc-request';
       const isWsRequest = values.requestType === 'ws-request';
-      const fileExtension = getFileExtension();
-      const filename = values.filename.endsWith(fileExtension) ? values.filename : `${values.filename}${fileExtension}`;
+      const filename = values.filename;
 
       if (isGrpcRequest) {
         dispatch(

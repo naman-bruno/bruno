@@ -303,13 +303,13 @@ const parseYamlFileMeta = (data) => {
 
     // Transform to the format expected by bruno-app
     let requestType = metaJson.type;
-    if (requestType === 'http') {
-      requestType = 'http-request';
-    } else if (requestType === 'graphql') {
-      requestType = 'graphql-request';
-    } else {
-      requestType = 'http-request';
-    }
+    const typeMap = {
+      http: 'http-request',
+      graphql: 'graphql-request',
+      grpc: 'grpc-request',
+      ws: 'ws-request'
+    };
+    requestType = typeMap[requestType] || 'http-request';
 
     const sequence = metaJson.seq;
     const transformedJson = {
