@@ -95,26 +95,8 @@ const searchForFiles = (dir, extension) => {
   return results;
 };
 
-const searchForRequestFiles = (dir) => {
-  let results = [];
-  const files = fs.readdirSync(dir);
-  for (const file of files) {
-    const filePath = path.join(dir, file);
-    const stat = fs.statSync(filePath);
-    if (stat.isDirectory()) {
-      results = results.concat(searchForRequestFiles(filePath));
-    } else {
-      const ext = path.extname(file).toLowerCase();
-      if (['.bru', '.yml', '.yaml'].includes(ext)) {
-        results.push(filePath);
-      }
-    }
-  }
-  return results;
-};
-
 const searchForBruFiles = (dir) => {
-  return searchForRequestFiles(dir); // Updated to include YAML files
+  return searchForFiles(dir, '.bru');
 };
 
 const stripExtension = (filename = '') => {
