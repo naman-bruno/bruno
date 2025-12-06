@@ -8,6 +8,7 @@ import { focusTab, reorderTabs } from 'providers/ReduxStore/slices/tabs';
 import NewRequest from 'components/Sidebar/NewRequest';
 import CollectionToolBar from './CollectionToolBar';
 import RequestTab from './RequestTab';
+import ScratchpadTab from './ScratchpadTab';
 import StyledWrapper from './StyledWrapper';
 import DraggableTab from './DraggableTab';
 
@@ -18,6 +19,8 @@ const RequestTabs = () => {
   const tabs = useSelector((state) => state.tabs.tabs);
   const activeTabUid = useSelector((state) => state.tabs.activeTabUid);
   const collections = useSelector((state) => state.collections.collections);
+  const scratchpadCollection = useSelector((state) => state.scratchpad.untitledCollection);
+  const scratchpadRequests = useSelector((state) => state.scratchpad.scratchpadRequests);
   const leftSidebarWidth = useSelector((state) => state.app.leftSidebarWidth);
   const sidebarCollapsed = useSelector((state) => state.app.sidebarCollapsed);
   const screenWidth = useSelector((state) => state.app.screenWidth);
@@ -48,7 +51,11 @@ const RequestTabs = () => {
     return <StyledWrapper>Something went wrong!</StyledWrapper>;
   }
 
-  const activeCollection = find(collections, (c) => c.uid === activeTab.collectionUid);
+  // Check if this is a scratchpad collection
+  const isScratchpadTab = activeTab.collectionUid === 'scratchpad-collection';
+  const activeCollection = isScratchpadTab
+    ? scratchpadCollection
+    : find(collections, (c) => c.uid === activeTab.collectionUid);
   const collectionRequestTabs = filter(tabs, (t) => t.collectionUid === activeTab.collectionUid);
 
   const effectiveSidebarWidth = sidebarCollapsed ? 0 : leftSidebarWidth;
@@ -106,6 +113,8 @@ const RequestTabs = () => {
             <ul role="tablist" style={{ maxWidth: maxTablistWidth }} ref={tabsRef}>
               {collectionRequestTabs && collectionRequestTabs.length
                 ? collectionRequestTabs.map((tab, index) => {
+                    const isThisScratchpadTab = tab.type === 'scratchpad-request' || tab.collectionUid === 'scratchpad-collection';
+
                     return (
                       <DraggableTab
                         key={tab.uid}
@@ -120,14 +129,23 @@ const RequestTabs = () => {
                         className={getTabClassname(tab, index)}
                         onClick={() => handleClick(tab)}
                       >
-                        <RequestTab
-                          collectionRequestTabs={collectionRequestTabs}
-                          tabIndex={index}
-                          key={tab.uid}
-                          tab={tab}
-                          collection={activeCollection}
-                          folderUid={tab.folderUid}
-                        />
+                        {isThisScratchpadTab ? (
+                          <ScratchpadTab
+                            tab={tab}
+                            scratchpadRequests={scratchpadRequests}
+                            collectionRequestTabs={collectionRequestTabs}
+                            tabIndex={index}
+                          />
+                        ) : (
+                          <RequestTab
+                            collectionRequestTabs={collectionRequestTabs}
+                            tabIndex={index}
+                            key={tab.uid}
+                            tab={tab}
+                            collection={activeCollection}
+                            folderUid={tab.folderUid}
+                          />
+                        )}
                       </DraggableTab>
                     );
                   })

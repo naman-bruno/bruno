@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import get from 'lodash/get';
 import { useDispatch } from 'react-redux';
 import { requestUrlChanged, updateRequestMethod } from 'providers/ReduxStore/slices/collections';
+import { updateScratchpadRequestUrl, updateScratchpadRequestMethod } from 'providers/ReduxStore/slices/scratchpad';
 import { cancelRequest, saveRequest } from 'providers/ReduxStore/slices/collections/actions';
 import HttpMethodSelector from './HttpMethodSelector';
 import { useTheme } from 'providers/Theme';
@@ -13,7 +14,7 @@ import StyledWrapper from './StyledWrapper';
 import GenerateCodeItem from 'components/Sidebar/Collections/Collection/CollectionItem/GenerateCodeItem/index';
 import toast from 'react-hot-toast';
 
-const QueryUrl = ({ item, collection, handleRun }) => {
+const QueryUrl = ({ item, collection, handleRun, isScratchpad = false }) => {
   const { theme, storedTheme } = useTheme();
   const dispatch = useDispatch();
   const method = item.draft ? get(item, 'draft.request.method') : get(item, 'request.method');
@@ -23,6 +24,7 @@ const QueryUrl = ({ item, collection, handleRun }) => {
   const editorRef = useRef(null);
   const isGrpc = item.type === 'grpc-request';
   const isLoading = ['queued', 'sending'].includes(item.requestState);
+  const isScratchpadRequest = isScratchpad || item?.isScratchpad || collection?.isScratchpad;
 
   const [methodSelectorWidth, setMethodSelectorWidth] = useState(90);
   const [generateCodeItemModalOpen, setGenerateCodeItemModalOpen] = useState(false);
@@ -34,7 +36,10 @@ const QueryUrl = ({ item, collection, handleRun }) => {
   }, [method]);
 
   const onSave = () => {
-    dispatch(saveRequest(item.uid, collection.uid));
+    if (!isScratchpadRequest) {
+      dispatch(saveRequest(item.uid, collection.uid));
+    }
+    // For scratchpad requests, save is handled separately via SaveScratchpadRequest modal
   };
 
   const onUrlChange = (value) => {
@@ -44,13 +49,22 @@ const QueryUrl = ({ item, collection, handleRun }) => {
 
     const finalUrl = value?.trim() ?? value;
 
-    dispatch(
-      requestUrlChanged({
-        itemUid: item.uid,
-        collectionUid: collection.uid,
-        url: finalUrl
-      })
-    );
+    if (isScratchpadRequest) {
+      dispatch(
+        updateScratchpadRequestUrl({
+          uid: item.uid,
+          url: finalUrl
+        })
+      );
+    } else {
+      dispatch(
+        requestUrlChanged({
+          itemUid: item.uid,
+          collectionUid: collection.uid,
+          url: finalUrl
+        })
+      );
+    }
 
     // Restore cursor position only if URL was trimmed
     if (finalUrl !== value) {
@@ -63,13 +77,22 @@ const QueryUrl = ({ item, collection, handleRun }) => {
   };
 
   const onMethodSelect = (verb) => {
-    dispatch(
-      updateRequestMethod({
-        method: verb,
-        itemUid: item.uid,
-        collectionUid: collection.uid
-      })
-    );
+    if (isScratchpadRequest) {
+      dispatch(
+        updateScratchpadRequestMethod({
+          uid: item.uid,
+          method: verb
+        })
+      );
+    } else {
+      dispatch(
+        updateRequestMethod({
+          method: verb,
+          itemUid: item.uid,
+          collectionUid: collection.uid
+        })
+      );
+    }
   };
 
   const handleGenerateCode = (e) => {

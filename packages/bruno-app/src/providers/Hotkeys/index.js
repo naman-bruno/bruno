@@ -15,9 +15,13 @@ import {
   saveCollectionSettings
 } from 'providers/ReduxStore/slices/collections/actions';
 import { findCollectionByUid, findItemInCollection } from 'utils/collections';
-import { closeTabs, reorderTabs, switchTab } from 'providers/ReduxStore/slices/tabs';
-import { toggleSidebarCollapse } from 'providers/ReduxStore/slices/app';
+import { closeTabs, reorderTabs, switchTab, addTab } from 'providers/ReduxStore/slices/tabs';
+import { toggleSidebarCollapse, hideHomePage } from 'providers/ReduxStore/slices/app';
+import { createScratchpadRequest } from 'providers/ReduxStore/slices/scratchpad';
+import { newEphemeralHttpRequest } from 'providers/ReduxStore/slices/collections';
 import { getKeyBindingsForActionAllOS } from './keyMappings';
+import { store } from 'providers/ReduxStore';
+import { uuid } from 'utils/common';
 
 export const HotkeysContext = React.createContext();
 
@@ -150,6 +154,72 @@ export const HotkeysProvider = (props) => {
       Mousetrap.unbind([...getKeyBindingsForActionAllOS('newRequest')]);
     };
   }, [activeTabUid, tabs, collections, setShowNewRequestModal]);
+
+  // new scratchpad request (ctrl/cmd + n)
+  useEffect(() => {
+    Mousetrap.bind([...getKeyBindingsForActionAllOS('newScratchpadRequest')], (e) => {
+      // Check if there's an active collection from the current tab
+      const activeTab = find(tabs, (t) => t.uid === activeTabUid);
+      let currentCollection = null;
+
+      if (activeTab && activeTab.collectionUid !== 'scratchpad-collection') {
+        currentCollection = findCollectionByUid(collections, activeTab.collectionUid);
+      }
+
+      if (currentCollection) {
+        // If a collection is open, create an ephemeral (untitled) request in that collection
+        const requestUid = uuid();
+        const requestName = 'Untitled Request';
+
+        dispatch(hideHomePage());
+        dispatch(
+          newEphemeralHttpRequest({
+            uid: requestUid,
+            requestName: requestName,
+            requestType: 'http-request',
+            requestUrl: '',
+            requestMethod: 'GET',
+            collectionUid: currentCollection.uid
+          })
+        );
+
+        // Open the new request in a tab
+        dispatch(
+          addTab({
+            uid: requestUid,
+            collectionUid: currentCollection.uid,
+            type: 'request',
+            requestPaneTab: 'params'
+          })
+        );
+      } else {
+        // No collection open - create a scratchpad request
+        dispatch(createScratchpadRequest({}));
+
+        // Get the new request uid from the action
+        const scratchpadRequests = store.getState().scratchpad.scratchpadRequests;
+        const newRequest = scratchpadRequests[scratchpadRequests.length - 1];
+
+        if (newRequest) {
+          dispatch(hideHomePage());
+          dispatch(
+            addTab({
+              uid: newRequest.uid,
+              collectionUid: 'scratchpad-collection',
+              type: 'scratchpad-request',
+              requestPaneTab: 'params'
+            })
+          );
+        }
+      }
+
+      return false; // this stops the event bubbling
+    });
+
+    return () => {
+      Mousetrap.unbind([...getKeyBindingsForActionAllOS('newScratchpadRequest')]);
+    };
+  }, [dispatch, activeTabUid, tabs, collections]);
 
   // global search (ctrl/cmd + k)
   useEffect(() => {

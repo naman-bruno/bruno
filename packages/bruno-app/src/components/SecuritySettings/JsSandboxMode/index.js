@@ -9,6 +9,11 @@ const JsSandboxMode = ({ collection }) => {
   const jsSandboxMode = collection?.securityConfig?.jsSandboxMode;
   const dispatch = useDispatch();
 
+  // Don't show for scratchpad collections
+  if (collection?.isScratchpad || collection?.uid === 'scratchpad-collection') {
+    return null;
+  }
+
   const viewSecuritySettings = () => {
     dispatch(
       addTab({

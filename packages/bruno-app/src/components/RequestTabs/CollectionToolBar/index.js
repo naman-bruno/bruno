@@ -10,6 +10,7 @@ import JsSandboxMode from 'components/SecuritySettings/JsSandboxMode';
 
 const CollectionToolBar = ({ collection }) => {
   const dispatch = useDispatch();
+  const isScratchpadCollection = collection?.isScratchpad || collection?.uid === 'scratchpad-collection';
 
   const handleRun = () => {
     dispatch(
@@ -40,6 +41,21 @@ const CollectionToolBar = ({ collection }) => {
       })
     );
   };
+
+  // Don't render toolbar for scratchpad collection
+  if (isScratchpadCollection) {
+    return (
+      <StyledWrapper>
+        <div className="flex items-center py-2 px-4">
+          <div className="flex flex-1 items-center">
+            <IconFiles size={18} strokeWidth={1.5} />
+            <span className="ml-2 mr-4 font-medium">{collection?.name || 'Scratchpad'}</span>
+            <span className="text-xs px-2 py-0.5 rounded bg-yellow-500 text-white">Temporary</span>
+          </div>
+        </div>
+      </StyledWrapper>
+    );
+  }
 
   return (
     <StyledWrapper>

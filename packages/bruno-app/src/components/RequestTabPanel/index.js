@@ -9,6 +9,7 @@ import ResponsePane from 'components/ResponsePane';
 import GrpcResponsePane from 'components/ResponsePane/GrpcResponsePane';
 import { findItemInCollection } from 'utils/collections';
 import { cancelRequest, sendRequest } from 'providers/ReduxStore/slices/collections/actions';
+import { sendScratchpadRequest } from 'providers/ReduxStore/slices/scratchpadActions';
 import RequestNotFound from './RequestNotFound';
 import QueryUrl from 'components/RequestPane/QueryUrl/index';
 import GrpcQueryUrl from 'components/RequestPane/GrpcQueryUrl/index';
@@ -50,8 +51,13 @@ const RequestTabPanel = () => {
   const focusedTab = find(tabs, (t) => t.uid === activeTabUid);
   const { globalEnvironments, activeGlobalEnvironmentUid } = useSelector((state) => state.globalEnvironments);
   const _collections = useSelector((state) => state.collections.collections);
+  const scratchpadRequests = useSelector((state) => state.scratchpad.scratchpadRequests);
+  const scratchpadCollection = useSelector((state) => state.scratchpad.untitledCollection);
   const preferences = useSelector((state) => state.app.preferences);
   const isVerticalLayout = preferences?.layout?.responsePaneOrientation === 'vertical';
+
+  // Check if this is a scratchpad tab
+  const isScratchpadTab = focusedTab?.collectionUid === 'scratchpad-collection' || focusedTab?.type === 'scratchpad-request';
 
   // merge `globalEnvironmentVariables` into the active collection and rebuild `collections` immer proxy object
   let collections = produce(_collections, (draft) => {
@@ -69,7 +75,9 @@ const RequestTabPanel = () => {
     }
   });
 
-  let collection = find(collections, (c) => c.uid === focusedTab?.collectionUid);
+  let collection = isScratchpadTab
+    ? scratchpadCollection
+    : find(collections, (c) => c.uid === focusedTab?.collectionUid);
   const [dragging, setDragging] = useState(false);
   const dragOffset = useRef({ x: 0, y: 0 });
   const { left: leftPaneWidth, top: topPaneHeight, reset: resetPaneBoundaries, setTop: setTopPaneHeight, setLeft: setLeftPaneWidth } = useTabPaneBoundaries(activeTabUid);
@@ -145,7 +153,17 @@ const RequestTabPanel = () => {
   }
 
   if (!collection || !collection.uid) {
-    return <div className="pb-4 px-4">Collection not found!</div>;
+    // For scratchpad tabs, create a virtual collection if it doesn't exist
+    if (isScratchpadTab) {
+      collection = {
+        uid: 'scratchpad-collection',
+        name: 'Scratchpad',
+        items: scratchpadRequests,
+        isScratchpad: true
+      };
+    } else {
+      return <div className="pb-4 px-4">Collection not found!</div>;
+    }
   }
 
   if (focusedTab.type === 'response-example') {
@@ -158,9 +176,13 @@ const RequestTabPanel = () => {
     return <ResponseExample item={item} collection={collection} example={example} />;
   }
 
-  const item = findItemInCollection(collection, activeTabUid);
+  // For scratchpad tabs, find the item in scratchpad requests
+  const item = isScratchpadTab
+    ? scratchpadRequests.find((r) => r.uid === activeTabUid)
+    : findItemInCollection(collection, activeTabUid);
   const isGrpcRequest = item?.type === 'grpc-request';
   const isWsRequest = item?.type === 'ws-request';
+  const isScratchpadRequest = item?.isScratchpad || isScratchpadTab;
 
   if (focusedTab.type === 'collection-runner') {
     return <RunnerResults collection={collection} />;
@@ -229,10 +251,18 @@ const RequestTabPanel = () => {
           duration: 5000
         }));
     } else if (item.requestState !== 'sending' && item.requestState !== 'queued') {
-      dispatch(sendRequest(item, collection.uid)).catch((err) =>
-        toast.custom((t) => <NetworkError onClose={() => toast.dismiss(t.id)} />, {
-          duration: 5000
-        }));
+      // Use scratchpad-specific action for scratchpad requests
+      if (isScratchpadRequest) {
+        dispatch(sendScratchpadRequest(item)).catch((err) =>
+          toast.custom((t) => <NetworkError onClose={() => toast.dismiss(t.id)} />, {
+            duration: 5000
+          }));
+      } else {
+        dispatch(sendRequest(item, collection.uid)).catch((err) =>
+          toast.custom((t) => <NetworkError onClose={() => toast.dismiss(t.id)} />, {
+            duration: 5000
+          }));
+      }
     }
   };
 
@@ -249,7 +279,7 @@ const RequestTabPanel = () => {
             ? <GrpcQueryUrl item={item} collection={collection} handleRun={handleRun} />
             : isWsRequest
               ? <WsQueryUrl item={item} collection={collection} handleRun={handleRun} />
-              : <QueryUrl item={item} collection={collection} handleRun={handleRun} />
+              : <QueryUrl item={item} collection={collection} handleRun={handleRun} isScratchpad={isScratchpadRequest} />
         }
       </div>
       <section ref={mainSectionRef} className={`main flex ${isVerticalLayout ? 'flex-col' : ''} flex-grow pb-4 relative overflow-auto`}>
@@ -275,8 +305,8 @@ const RequestTabPanel = () => {
               />
             ) : null}
 
-            {item.type === 'http-request' ? (
-              <HttpRequestPane item={item} collection={collection} />
+            {item.type === 'http-request' || isScratchpadRequest ? (
+              <HttpRequestPane item={item} collection={collection} isScratchpad={isScratchpadRequest} />
             ) : null}
 
             {isGrpcRequest ? (

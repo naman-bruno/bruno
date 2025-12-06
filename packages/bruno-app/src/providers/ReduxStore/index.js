@@ -9,6 +9,7 @@ import globalEnvironmentsReducer from './slices/global-environments';
 import logsReducer from './slices/logs';
 import performanceReducer from './slices/performance';
 import workspacesReducer from './slices/workspaces';
+import scratchpadReducer from './slices/scratchpad';
 import { draftDetectMiddleware } from './middlewares/draft/middleware';
 import { autosaveMiddleware } from './middlewares/autosave/middleware';
 
@@ -30,7 +31,8 @@ export const store = configureStore({
     globalEnvironments: globalEnvironmentsReducer,
     logs: logsReducer,
     performance: performanceReducer,
-    workspaces: workspacesReducer
+    workspaces: workspacesReducer,
+    scratchpad: scratchpadReducer
   },
   middleware: (getDefaultMiddleware) => getDefaultMiddleware().concat(middleware)
 });

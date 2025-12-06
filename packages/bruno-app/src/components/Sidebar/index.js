@@ -1,5 +1,6 @@
 import TitleBar from './TitleBar';
 import Collections from './Collections';
+import PinnedRequests from './PinnedRequests';
 import StyledWrapper from './StyledWrapper';
 
 import { useState, useEffect, useRef } from 'react';
@@ -80,10 +81,11 @@ const Sidebar = () => {
       <aside className="sidebar" style={{ width: currentWidth, transition: dragging ? 'none' : 'width 0.2s ease-in-out' }}>
         <div className="flex flex-row h-full w-full">
           <div className="flex flex-col w-full" style={{ width: asideWidth }}>
-            <div className="flex flex-col flex-grow">
+            <div className="flex flex-col flex-grow overflow-hidden">
               <TitleBar />
               <Collections />
             </div>
+            <PinnedRequests />
           </div>
         </div>
       </aside>

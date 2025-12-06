@@ -19,12 +19,14 @@ import {
   IconTrash,
   IconSettings,
   IconInfoCircle,
-  IconTerminal2
+  IconTerminal2,
+  IconPinned
 } from '@tabler/icons';
 import { useSelector, useDispatch } from 'react-redux';
 import { addTab, focusTab, makeTabPermanent } from 'providers/ReduxStore/slices/tabs';
 import { handleCollectionItemDrop, sendRequest, showInFolder, pasteItem, saveRequest } from 'providers/ReduxStore/slices/collections/actions';
 import { toggleCollectionItem, addResponseExample } from 'providers/ReduxStore/slices/collections';
+import { pinRequest } from 'providers/ReduxStore/slices/scratchpad';
 import { insertTaskIntoQueue } from 'providers/ReduxStore/slices/app';
 import { uuid } from 'utils/common';
 import { copyRequest } from 'providers/ReduxStore/slices/app';
@@ -664,6 +666,25 @@ const CollectionItem = ({ item, collectionUid, collectionPathname, searchText })
                 </span>
                 Show in Folder
               </div>
+              {!isFolder && (
+                <div
+                  className="dropdown-item"
+                  onClick={(e) => {
+                    dropdownTippyRef.current.hide();
+                    dispatch(pinRequest({
+                      uid: item.uid,
+                      collectionUid: collectionUid,
+                      isScratchpad: false
+                    }));
+                    toast.success(`Pinned "${item.name}"`);
+                  }}
+                >
+                  <span className="dropdown-icon">
+                    <IconPinned size={16} strokeWidth={2} />
+                  </span>
+                  Pin Request
+                </div>
+              )}
               {!isFolder && (item.type === 'http-request' || item.type === 'graphql-request') && (
                 <div
                   className="dropdown-item"
