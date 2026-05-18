@@ -3,6 +3,8 @@ import { interpolate } from '@usebruno/common';
 import { isValidUrl } from 'utils/url/index';
 const xml2js = require('xml2js');
 
+const BRUNO_VARIANTS_KEY = 'x-bruno-variants';
+
 export const exportApiSpec = ({ variables, items, name, environments }) => {
   items = items.filter((item) => !['grpc-request'].includes(item.type));
 
@@ -463,11 +465,25 @@ export const exportApiSpec = ({ variables, items, name, environments }) => {
       if (!acc[item?.url]) {
         acc[item?.url] = {};
       }
-      acc[item?.url][item?.method] = item?.data;
-      // Add operation-level server override inside the operation object (not path-item level)
-      // so the import can read it back from operationObject.servers
+
+      const operationData = item?.data || {};
+      // Attach operation-level server override inside the operation body so it travels with
+      // both the primary operation and any variants (path+method collisions).
       if (item?.operationLevelServer) {
-        acc[item?.url][item?.method].servers = [item.operationLevelServer];
+        operationData.servers = [item.operationLevelServer];
+      }
+
+      const existing = acc[item.url][item.method];
+      if (!existing) {
+        acc[item.url][item.method] = operationData;
+      } else {
+        // Same path+method already taken — OpenAPI allows only one operation per slot,
+        // so stash the duplicate as a Bruno-specific variant on the primary operation.
+        // The x- prefix keeps the spec valid; non-Bruno tools ignore the field.
+        if (!Array.isArray(existing[BRUNO_VARIANTS_KEY])) {
+          existing[BRUNO_VARIANTS_KEY] = [];
+        }
+        existing[BRUNO_VARIANTS_KEY].push(operationData);
       }
       return acc;
     }, {});

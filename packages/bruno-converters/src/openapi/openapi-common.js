@@ -1,6 +1,10 @@
 import each from 'lodash/each';
 import { uuid, sanitizeTag } from '../common';
 
+// Vendor extension that stores sibling Bruno requests sharing the same path+method.
+// OpenAPI allows one operation per path+method, so additional ones round-trip via this field.
+export const BRUNO_VARIANTS_KEY = 'x-bruno-variants';
+
 // Content type patterns for matching MIME type variants
 // These patterns handle structured types with many variants (e.g., application/ld+json, application/vnd.api+json)
 // MIME types can contain: letters, numbers, hyphens, dots, and plus signs

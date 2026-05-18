@@ -11,7 +11,8 @@ import {
   getExampleFromSchema,
   createBrunoExample,
   groupRequestsByTags,
-  groupRequestsByPath
+  groupRequestsByPath,
+  BRUNO_VARIANTS_KEY
 } from './openapi-common';
 
 /**
@@ -581,28 +582,40 @@ export const parseSwagger2Collection = (data, options = {}) => {
       return [...inherited, ...operationParams];
     };
 
+    const buildRequestFromOperation = (path, pathItemObject, method, operationObject) => {
+      const pathItemParams = pathItemObject.parameters || [];
+      const mergedParams = mergeParams(pathItemParams, operationObject.parameters || []);
+      return {
+        method,
+        path: path.replace(/{([^}]+)}/g, ':$1'),
+        originalPath: path,
+        operationObject: { ...operationObject, parameters: mergedParams },
+        global: {
+          server: '{{baseUrl}}',
+          security: securityConfig,
+          consumes: collectionData.consumes,
+          produces: collectionData.produces
+        }
+      };
+    };
+
     let allRequests = Object.entries(collectionData.paths || {})
-      .map(([path, pathItemObject]) => {
-        const pathItemParams = pathItemObject.parameters || [];
+      .flatMap(([path, pathItemObject]) => {
         return Object.entries(pathItemObject)
           .filter(([method]) => ['get', 'put', 'post', 'delete', 'options', 'head', 'patch'].includes(method.toLowerCase()))
-          .map(([method, operationObject]) => {
-            const mergedParams = mergeParams(pathItemParams, operationObject.parameters || []);
-            return {
-              method,
-              path: path.replace(/{([^}]+)}/g, ':$1'),
-              originalPath: path,
-              operationObject: { ...operationObject, parameters: mergedParams },
-              global: {
-                server: '{{baseUrl}}',
-                security: securityConfig,
-                consumes: collectionData.consumes,
-                produces: collectionData.produces
+          .flatMap(([method, operationObject]) => {
+            const requests = [buildRequestFromOperation(path, pathItemObject, method, operationObject)];
+            const variants = operationObject[BRUNO_VARIANTS_KEY];
+            if (Array.isArray(variants)) {
+              for (const variantOp of variants) {
+                if (variantOp && typeof variantOp === 'object') {
+                  requests.push(buildRequestFromOperation(path, pathItemObject, method, variantOp));
+                }
               }
-            };
+            }
+            return requests;
           });
-      })
-      .reduce((acc, val) => acc.concat(val), []);
+      });
 
     // Grouping
     const groupingType = options.groupBy || 'tags';

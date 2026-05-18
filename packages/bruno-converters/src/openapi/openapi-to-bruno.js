@@ -9,7 +9,8 @@ import {
   getExampleFromSchema,
   createBrunoExample,
   groupRequestsByTags,
-  groupRequestsByPath
+  groupRequestsByPath,
+  BRUNO_VARIANTS_KEY
 } from './openapi-common';
 
 const getContentLevelExample = (bodyContent) => {
@@ -844,34 +845,45 @@ export const parseOpenApiCollection = (data, options = {}) => {
       return [...inheritedParams, ...operationParams];
     };
 
-    let allRequests = Object.entries(collectionData.paths)
-      .map(([path, pathItemObject]) => {
-        // Extract path-item level parameters (per OpenAPI spec, these apply to all operations under this path)
-        const pathItemParams = pathItemObject.parameters || [];
+    // Build a parsed-request entry from an operation object, applying path-item parameter
+    // inheritance and server fallbacks. Used for both the primary operation and each variant.
+    const buildRequestFromOperation = (path, pathItemObject, method, operationObject) => {
+      const pathItemParams = pathItemObject.parameters || [];
+      const mergedParams = mergeParams(pathItemParams, operationObject.parameters || []);
+      return {
+        method,
+        path: path.replace(/{([^}]+)}/g, ':$1'),
+        originalPath: path,
+        operationObject: { ...operationObject, parameters: mergedParams },
+        global: {
+          server: '{{baseUrl}}',
+          security: securityConfig
+        },
+        servers: operationObject.servers || pathItemObject.servers || null
+      };
+    };
 
+    let allRequests = Object.entries(collectionData.paths)
+      .flatMap(([path, pathItemObject]) => {
         return Object.entries(pathItemObject)
-          .filter(([method, op]) => {
+          .filter(([method]) => {
             return ['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace'].includes(
               method.toLowerCase()
             );
           })
-          .map(([method, operationObject]) => {
-            const mergedParams = mergeParams(pathItemParams, operationObject.parameters || []);
-
-            return {
-              method: method,
-              path: path.replace(/{([^}]+)}/g, ':$1'), // Replace placeholders enclosed in curly braces with colons
-              originalPath: path, // Keep original path for grouping
-              operationObject: { ...operationObject, parameters: mergedParams },
-              global: {
-                server: '{{baseUrl}}',
-                security: securityConfig
-              },
-              servers: operationObject.servers || pathItemObject.servers || null
-            };
+          .flatMap(([method, operationObject]) => {
+            const requests = [buildRequestFromOperation(path, pathItemObject, method, operationObject)];
+            const variants = operationObject[BRUNO_VARIANTS_KEY];
+            if (Array.isArray(variants)) {
+              for (const variantOp of variants) {
+                if (variantOp && typeof variantOp === 'object') {
+                  requests.push(buildRequestFromOperation(path, pathItemObject, method, variantOp));
+                }
+              }
+            }
+            return requests;
           });
-      })
-      .reduce((acc, val) => acc.concat(val), []); // flatten
+      });
 
     // Support both tag-based and path-based grouping
     const groupingType = options.groupBy || 'tags';
