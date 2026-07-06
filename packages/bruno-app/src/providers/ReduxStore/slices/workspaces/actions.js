@@ -843,6 +843,12 @@ export const restoreActiveWorkspaceFromSnapshot = () => {
 
 export const workspaceOpenedEvent = (workspacePath, workspaceUid, workspaceConfig) => {
   return async (dispatch, getState) => {
+    // Capture the startup flag before any await. Otherwise `main:workspaces-ready`
+    // (which fires immediately after this event) can flip it to false via
+    // restoreActiveWorkspaceFromSnapshot mid-await, and both handlers race into
+    // switchWorkspace — creating two scratch collections and orphaning tabs.
+    const deferSwitchToStartupRestore = startupWorkspaceRestorePending;
+
     dispatch(createWorkspace({
       uid: workspaceUid,
       pathname: workspacePath,
@@ -872,7 +878,7 @@ export const workspaceOpenedEvent = (workspacePath, workspaceUid, workspaceConfi
     } catch (err) {
     }
 
-    if (startupWorkspaceRestorePending) {
+    if (deferSwitchToStartupRestore) {
       return;
     }
 
