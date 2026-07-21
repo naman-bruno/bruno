@@ -39,6 +39,7 @@ import { useDispatch, useStore } from 'react-redux';
 import { isElectron } from 'utils/common/platform';
 import { globalEnvironmentsUpdateEvent, updateGlobalEnvironments, _clearScriptGlobalEnvBaseline } from 'providers/ReduxStore/slices/global-environments';
 import { collectionAddOauth2CredentialsByUrl, collectionClearOauth2CredentialsByCredentialsId, updateCollectionLoadingState, collectionLoadedFromTree } from 'providers/ReduxStore/slices/collections/index';
+import { migrationProgressEvent } from 'providers/ReduxStore/slices/collection-migration';
 import { addLog } from 'providers/ReduxStore/slices/logs';
 import { loadNotifications } from 'providers/ReduxStore/slices/notifications';
 import { updateSystemResources } from 'providers/ReduxStore/slices/performance';
@@ -122,6 +123,13 @@ const useIpcEvents = () => {
     const removeCollectionTreeUpdateListener = ipcRenderer.on('main:collection-tree-updated', _collectionTreeUpdated);
 
     const removeApiSpecTreeUpdateListener = ipcRenderer.on('main:apispec-tree-updated', _apiSpecTreeUpdated);
+
+    const removeCollectionMigrationProgressListener = ipcRenderer.on(
+      'main:collection-migration-progress',
+      (progress) => {
+        dispatch(migrationProgressEvent(progress));
+      }
+    );
 
     const removeOpenCollectionListener = ipcRenderer.on('main:collection-opened', async (pathname, uid, brunoConfig) => {
       try {
@@ -385,6 +393,7 @@ const useIpcEvents = () => {
       removeCollectionTreeUpdateListener();
       removeApiSpecTreeUpdateListener();
       removeOpenCollectionListener();
+      removeCollectionMigrationProgressListener();
       removeOpenWorkspaceListener();
       removeWorkspacesReadyListener();
       removeWorkspaceConfigUpdatedListener();
