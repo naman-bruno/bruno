@@ -1,16 +1,27 @@
 import { defineConfig } from '@playwright/test';
 
-const reporter: any[] = [['list'], ['html'], ['json', { outputFile: 'playwright-report/results.json' }]];
+// Sharded CI runs emit a blob report per shard; a follow-up CI job stitches them
+// into the final html/json report via `playwright merge-reports`.
+const useBlobReporter = !!process.env.PW_BLOB_REPORT;
+
+const reporter: any[] = useBlobReporter
+  ? [['list'], ['blob']]
+  : [['list'], ['html'], ['json', { outputFile: 'playwright-report/results.json' }]];
 
 if (process.env.CI) {
   reporter.push(['github']);
 }
 
 export default defineConfig({
-  fullyParallel: true,
+  // On CI, schedule at file granularity so all tests of a spec file stay on one
+  // worker. Fixtures cache the Electron app per (file, worker) — with tests of
+  // the same file spread across workers, each worker pays its own app launch
+  // (~6s). File-level scheduling cuts those duplicate launches; locally we keep
+  // test-level parallelism for fast single-file iteration.
+  fullyParallel: !process.env.CI,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: undefined,
+  workers: process.env.PW_WORKERS ? Number(process.env.PW_WORKERS) : undefined,
   reporter,
 
   use: {
