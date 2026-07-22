@@ -61,9 +61,14 @@ jobs:
           check_run: false
 
   e2e-test:
-    name: Playwright E2E Tests (Windows)
-    timeout-minutes: 240
+    name: Playwright E2E Tests (Windows, ${{ matrix.shardIndex }}/${{ matrix.shardTotal }})
+    timeout-minutes: 90
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shardIndex: [1, 2, 3, 4]
+        shardTotal: [4]
     steps:
       - uses: actions/checkout@v6
 
@@ -77,6 +82,40 @@ jobs:
         with:
           os: windows
           shell: pwsh
+          shard: ${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
+
+      - name: Upload Blob Report
+        uses: actions/upload-artifact@v6
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-blob-windows-${{ matrix.shardIndex }}
+          path: blob-report/
+          retention-days: 7
+
+  e2e-report:
+    name: Playwright E2E Report (Windows)
+    needs: e2e-test
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node Dependencies
+        uses: ./.github/actions/common/setup-node-deps
+        with:
+          skip-build: 'true'
+
+      - name: Download Blob Reports
+        uses: actions/download-artifact@v6
+        with:
+          path: all-blob-reports
+          pattern: playwright-blob-windows-*
+          merge-multiple: true
+
+      - name: Merge Reports
+        run: npx playwright merge-reports --reporter html,json ./all-blob-reports
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_NAME: playwright-report/results.json
 
       - name: Upload Playwright Report
         uses: actions/upload-artifact@v6
