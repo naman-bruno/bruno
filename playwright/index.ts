@@ -351,9 +351,10 @@ export const test = baseTest.extend<
       const apps: Record<string, ElectronApplication> = {};
       await use(async ({ initUserDataPath, testFile, userDataPath, dotEnv = {}, templateVars = {}, closePrevious = false } = {}) => {
         const key = testFile || userDataPath || initUserDataPath;
+        const closing: Promise<unknown>[] = [];
         if (key && apps[key]) {
           if (closePrevious) {
-            await closeElectronApp(apps[key]);
+            closing.push(closeElectronApp(apps[key]));
             delete apps[key];
           } else {
             return apps[key];
@@ -363,12 +364,18 @@ export const test = baseTest.extend<
         // Close other cached apps to prevent resource accumulation across test files
         for (const existingKey of Object.keys(apps)) {
           if (existingKey !== key) {
-            await closeElectronApp(apps[existingKey]);
+            closing.push(closeElectronApp(apps[existingKey]));
             delete apps[existingKey];
           }
         }
 
-        const app = await launchElectronApp({ initUserDataPath, userDataPath, dotEnv, templateVars });
+        // Teardown of the outgoing app (bounded inside closeElectronApp) overlaps
+        // with the new launch — the apps use separate userData dirs, so they can
+        // coexist briefly.
+        const [app] = await Promise.all([
+          launchElectronApp({ initUserDataPath, userDataPath, dotEnv, templateVars }),
+          ...closing
+        ]);
         if (key) {
           apps[key] = app;
         }
