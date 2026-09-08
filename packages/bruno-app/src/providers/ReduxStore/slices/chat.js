@@ -1,5 +1,8 @@
-import { createSlice } from '@reduxjs/toolkit';
+import { createSlice, createAction } from '@reduxjs/toolkit';
 import { closeTabs } from './tabs';
+
+const docsSidebarOpened = createAction('docsSidebar/openDocsSidebar');
+const docsSidebarToggled = createAction('docsSidebar/toggleDocsSidebar');
 import {
   newConversationId,
   saveConversation,
@@ -169,6 +172,17 @@ export const chatSlice = createSlice({
       const tabUids = action.payload.tabUids || [];
       tabUids.forEach((uid) => { delete state.chats[uid]; });
     });
+    // Mutually exclusive with the docs sidebar: opening docs (or toggling it,
+    // which either opens or closes it) always leaves the AI sidebar closed.
+    builder
+      .addCase(docsSidebarOpened, (state) => {
+        state.isOpen = false;
+        state.isPoppedOut = false;
+      })
+      .addCase(docsSidebarToggled, (state) => {
+        state.isOpen = false;
+        state.isPoppedOut = false;
+      });
   }
 });
 

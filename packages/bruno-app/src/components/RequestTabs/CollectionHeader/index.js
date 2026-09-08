@@ -18,7 +18,8 @@ import {
   IconFileOff,
   IconCode,
   IconAppWindow,
-  IconTransform
+  IconTransform,
+  IconFileText
 } from '@tabler/icons';
 import IconSparkles from 'components/Icons/IconSparkles';
 import OpenAPISyncIcon from 'components/Icons/OpenAPISync';
@@ -27,6 +28,7 @@ import { updateWorkspace } from 'providers/ReduxStore/slices/workspaces';
 import { showInFolder } from 'providers/ReduxStore/slices/collections/actions';
 import { toggleCollectionFileMode } from 'providers/ReduxStore/slices/collections';
 import { toggleAiSidebar } from 'providers/ReduxStore/slices/chat';
+import { toggleDocsSidebar } from 'providers/ReduxStore/slices/docs-sidebar';
 import { showMigrateToYmlModal } from 'providers/ReduxStore/slices/collection-migration';
 import { findItemInCollection, findItemInCollectionByPathname } from 'utils/collections';
 import find from 'lodash/find';
@@ -72,6 +74,7 @@ const CollectionHeader = ({ collection, isScratchCollection }) => {
   const preferences = useSelector((state) => state.app.preferences);
   const isAiEnabled = get(preferences, 'ai.enabled', false);
   const isAiSidebarOpen = useSelector((state) => state.chat.isOpen);
+  const isDocsSidebarOpen = useSelector((state) => state.docsSidebar.isOpen);
 
   // Get the current active workspace
   const currentWorkspace = workspaces.find((w) => w.uid === activeWorkspaceUid);
@@ -737,6 +740,17 @@ const CollectionHeader = ({ collection, isScratchCollection }) => {
                   </ToolHint>
                 </div>
               )}
+              <ToolHint text="Documentation" toolhintId="DocsSidebarToolhintId" place="bottom">
+                <ActionIcon
+                  onClick={() => dispatch(toggleDocsSidebar())}
+                  aria-label="Documentation"
+                  size="sm"
+                  data-testid="docs-sidebar-toggle"
+                  className={isDocsSidebarOpen ? 'active' : ''}
+                >
+                  <IconFileText size={16} strokeWidth={1.5} />
+                </ActionIcon>
+              </ToolHint>
               {isAiEnabled && (
                 <ToolHint text="AI Assistant" toolhintId="AiAssistantToolhintId" place="bottom">
                   <ActionIcon

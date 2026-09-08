@@ -13,6 +13,7 @@ import apiSpecReducer from './slices/apiSpec';
 import openapiSyncReducer from './slices/openapi-sync';
 import mockServerReducer from './slices/mock-server/index';
 import chatReducer from './slices/chat';
+import docsSidebarReducer from './slices/docs-sidebar';
 import collectionMigrationReducer from './slices/collection-migration';
 import { draftDetectMiddleware } from './middlewares/draft/middleware';
 import { autosaveMiddleware } from './middlewares/autosave/middleware';
@@ -41,6 +42,7 @@ export const store = configureStore({
     openapiSync: openapiSyncReducer,
     mockServer: mockServerReducer,
     chat: chatReducer,
+    docsSidebar: docsSidebarReducer,
     collectionMigration: collectionMigrationReducer
   },
   middleware: (getDefaultMiddleware) => getDefaultMiddleware().concat(middleware)

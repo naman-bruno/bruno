@@ -6,6 +6,7 @@ import RequestTabPanel from 'components/RequestTabPanel';
 import AppPreviewKeepAlive from 'components/AppPreviewKeepAlive';
 import AiChatSidebar from 'components/AiChatSidebar';
 import AiChatPopout from 'components/AiChatSidebar/Popout';
+import DocsSidebar from 'components/DocsSidebar';
 import Sidebar from 'components/Sidebar';
 import OpenCollection from 'components/Sidebar/OpenCollection';
 import StatusBar from 'components/StatusBar';
@@ -59,8 +60,11 @@ export default function Main() {
   // extra re-renders during initial layout were destabilising CodeMirror.
   const isAiSidebarOpen = useSelector((state) => state.chat.isOpen);
   const isAiPoppedOut = useSelector((state) => state.chat.isPoppedOut);
+  const isDocsSidebarOpen = useSelector((state) => state.docsSidebar.isOpen);
   const activeCollection = useSelector((state) => {
-    if (!state.chat.isOpen) return null;
+    // Same optimisation as the AI sidebar: skip the collection lookup unless
+    // one of the right-edge sidebars actually needs it.
+    if (!state.chat.isOpen && !state.docsSidebar.isOpen) return null;
     const activeTab = state.tabs.tabs.find((t) => t.uid === state.tabs.activeTabUid);
     if (!activeTab) return null;
     return state.collections.collections.find((c) => c.uid === activeTab.collectionUid) || null;
@@ -144,6 +148,9 @@ export default function Main() {
           )}
           {isAiSidebarOpen && activeCollection && !isAiPoppedOut && !showApiSpecPage && !showManageWorkspacePage && (
             <AiChatSidebar collection={activeCollection} />
+          )}
+          {isDocsSidebarOpen && activeCollection && !showApiSpecPage && !showManageWorkspacePage && (
+            <DocsSidebar collection={activeCollection} />
           )}
         </StyledWrapper>
       </div>

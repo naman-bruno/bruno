@@ -61,11 +61,11 @@ const EXPAND_EDGE_THRESHOLD = 100;
 // Minimum response pane height to show placeholder content on click-expand
 const RESPONSE_EXPAND_MIN_HEIGHT = 300;
 
-// Tabs whose response pane we auto-collapsed when the AI sidebar docked.
-// Module-level because the panel remounts per tab (key={activeTabUid}) — a
-// tab is restored here only once the sidebar is gone AND the user didn't
-// expand it manually in the meantime.
-const aiAutoCollapsedTabs = new Set();
+// Tabs whose response pane we auto-collapsed when one of the right-edge
+// sidebars (AI or Docs) docked. Module-level because the panel remounts per
+// tab (key={activeTabUid}) — a tab is restored here only once every right
+// sidebar is gone AND the user didn't expand it manually in the meantime.
+const rightSidebarAutoCollapsedTabs = new Set();
 
 const RequestTabPanel = () => {
   const dispatch = useDispatch();
@@ -86,7 +86,9 @@ const RequestTabPanel = () => {
   const activeWorkspace = workspaces.find((w) => w.uid === activeWorkspaceUid);
   const isVerticalLayout = preferences?.layout?.responsePaneOrientation === 'vertical';
   const isConsoleOpen = useSelector((state) => state.logs.isConsoleOpen);
-  const isAiSidebarDocked = useSelector((state) => state.chat.isOpen && !state.chat.isPoppedOut);
+  const isRightSidebarDocked = useSelector(
+    (state) => (state.chat.isOpen && !state.chat.isPoppedOut) || state.docsSidebar.isOpen
+  );
 
   const isRequestTab = focusedTab && ['request', 'http-request', 'grpc-request', 'ws-request', 'graphql-request'].includes(focusedTab.type);
   useKeybinding('sendRequest', (e) => {
@@ -375,17 +377,17 @@ const RequestTabPanel = () => {
 
   useEffect(() => {
     if (isVerticalLayout) return;
-    if (isAiSidebarDocked) {
+    if (isRightSidebarDocked) {
       if (responsePaneCollapsedRef.current) return;
-      aiAutoCollapsedTabs.add(activeTabUid);
+      rightSidebarAutoCollapsedTabs.add(activeTabUid);
       collapseResponseRef.current();
-    } else if (aiAutoCollapsedTabs.has(activeTabUid)) {
-      aiAutoCollapsedTabs.delete(activeTabUid);
+    } else if (rightSidebarAutoCollapsedTabs.has(activeTabUid)) {
+      rightSidebarAutoCollapsedTabs.delete(activeTabUid);
       if (responsePaneCollapsedRef.current) {
         expandResponseRef.current();
       }
     }
-  }, [isAiSidebarDocked, isVerticalLayout, activeTabUid]);
+  }, [isRightSidebarDocked, isVerticalLayout, activeTabUid]);
 
   useEffect(() => {
     if (!isVerticalLayout) return;
