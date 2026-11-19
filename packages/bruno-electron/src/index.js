@@ -57,6 +57,7 @@ const registerOpenAPISyncIpc = require('./ipc/openapi-sync');
 const registerMockServerIpc = require('./ipc/mock-server');
 const registerAiIpc = require('./ipc/ai');
 const registerAiAutocompleteIpc = require('./ipc/ai/autocomplete');
+const registerMcpIpc = require('./ipc/mcp');
 const { registerMountIpc } = require('./ipc/mount');
 const { registerSqliteIpc } = require('./ipc/sqlite');
 const sqliteService = require('./services/sqlite');
@@ -565,6 +566,7 @@ app.on('ready', async () => {
   registerMockServerIpc(mainWindow);
   registerAiIpc(mainWindow);
   registerAiAutocompleteIpc(mainWindow);
+  registerMcpIpc();
   registerMountIpc();
   sqliteService.openDatabase();
   clearAllRunnerResponses().catch((err) => console.warn('[runner] failed to clear stored responses', err));

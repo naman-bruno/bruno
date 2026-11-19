@@ -11,7 +11,8 @@ import {
   IconZoomQuestion,
   IconSquareLetterB,
   IconDatabase,
-  IconCertificate
+  IconCertificate,
+  IconPlug
 } from '@tabler/icons';
 
 import IconSparkles from 'components/Icons/IconSparkles';
@@ -23,6 +24,7 @@ import Display from './Display';
 import Keybindings from './Keybindings';
 import Beta from './Beta';
 import AI from './AI';
+import Mcp from './Mcp';
 
 import ClientCertSettings from './ClientCertSettings';
 
@@ -73,6 +75,10 @@ const Preferences = () => {
         return <AI />;
       }
 
+      case 'mcp': {
+        return <Mcp />;
+      }
+
       case 'support': {
         return <Support />;
       }
@@ -118,6 +124,10 @@ const Preferences = () => {
           <div className={getTabClassname('ai')} role="tab" onClick={() => setTab('ai')}>
             <IconSparkles size={16} strokeWidth={1.5} />
             AI
+          </div>
+          <div className={getTabClassname('mcp')} role="tab" onClick={() => setTab('mcp')} data-testid="preferences-tab-mcp">
+            <IconPlug size={16} strokeWidth={1.5} />
+            MCP
           </div>
           <div className={getTabClassname('cache')} role="tab" onClick={() => setTab('cache')}>
             <IconDatabase size={16} strokeWidth={1.5} />
